@@ -1,0 +1,29 @@
+services:
+  # Backend Service
+  - type: web
+    name: civic-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && python app.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENCAGE_API_KEY
+        sync: false
+
+  # Frontend Service
+  - type: web
+    name: civic-frontend
+    env: static
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
