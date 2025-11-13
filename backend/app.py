@@ -3,12 +3,14 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import os
 import base64
+import traceback
 import cv2
 import numpy as np
 from PIL import Image
 import io
 import requests
 import json
+import uuid
 from datetime import datetime
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
@@ -21,7 +23,13 @@ app = Flask(__name__)
 CORS(app)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///civic_issues.db'
+#
+# Ensure we always point to a single persistent SQLite file regardless of CWD.
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+instance_dir = os.path.join(backend_dir, 'instance')
+os.makedirs(instance_dir, exist_ok=True)
+db_path = os.path.join(instance_dir, 'civic_issues.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -31,6 +39,34 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 # Initialize AI services
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+# Root and health endpoints
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({
+        'service': 'Civic Issue Backend',
+        'status': 'running',
+        'endpoints': {
+            'health': '/health',
+            'classify_issue': 'POST /api/classify-issue',
+            'submit_complaint': 'POST /api/submit-complaint',
+            'track_complaint': 'GET /api/track-complaint/<id>',
+            'complaints_map': 'GET /api/complaints-map?lat=<>&lon=<>',
+            'heatmap_data': 'GET /api/heatmap-data',
+            'all_complaints': 'GET /api/all-complaints'
+        }
+    })
+
+@app.route('/api', methods=['GET'])
+def api_root():
+    return jsonify({
+        'message': 'API root',
+        'classify_issue': 'POST /api/classify-issue'
+    })
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'ok'})
 
 # Database Models
 class IssueReport(db.Model):
@@ -57,48 +93,103 @@ class Department(db.Model):
     issue_types = db.Column(db.String(500))  # JSON string of handled issue types
     contact_info = db.Column(db.String(200))
 
-# ML Model for Issue Classification
-class IssueClassifier:
-    def __init__(self):
-        # This would be your trained model
-        # For demo purposes, we'll use a simple rule-based classifier
-        self.issue_types = [
-            'pothole', 'street_light', 'garbage', 'water_leak', 
-            'traffic_signal', 'sidewalk_damage', 'drainage', 'other'
-        ]
-    
-    def classify_issue(self, image_data):
-        # In a real implementation, you would:
-        # 1. Load your trained model
-        # 2. Preprocess the image
-        # 3. Run inference
-        # 4. Return the predicted class and confidence
-        
-        # For demo, return a random classification
-        import random
-        predicted_type = random.choice(self.issue_types)
-        confidence = random.uniform(0.7, 0.95)
-        
-        return {
-            'issue_type': predicted_type,
-            'confidence': confidence
-        }
+# Import the model inference module
+from model_inference import IssueClassifier
 
-classifier = IssueClassifier()
+# Initialize the classifier with the trained MobileNetV3 model
+# Using the best_urban_mobilenet.pth model from the model directory
+# Get the project root directory (parent of backend)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+model_path = os.path.join(project_root, 'model', 'best_urban_mobilenet.pth')
+
+# Set num_classes=6 if your model was trained with all 6 categories (including illegal_parking)
+# Set num_classes=5 if your model was trained with only 5 categories (without illegal_parking)
+try:
+    classifier = IssueClassifier(model_path=model_path, num_classes=6)
+    print("=" * 60)
+    print("[OK] Model classifier initialized successfully!")
+    print("=" * 60)
+except FileNotFoundError as e:
+    print("=" * 60)
+    print("[ERROR] Model file not found!")
+    print("=" * 60)
+    print(str(e))
+    print(f"\nExpected model path: {model_path}")
+    print("\nTo fix this:")
+    print("1. Ensure best_urban_mobilenet.pth exists in the model/ directory")
+    print("2. The model should be trained with MobileNetV3CBAM architecture")
+    print("3. Check that the file path is correct")
+    print("=" * 60)
+    raise
+except Exception as e:
+    print("=" * 60)
+    print("[ERROR] Failed to initialize model!")
+    print("=" * 60)
+    print(str(e))
+    print("=" * 60)
+    raise
 
 # Utility Functions
 def get_address_from_coords(lat, lon):
     try:
-        geolocator = Nominatim(user_agent="civic_issue_app")
-        location = geolocator.reverse(f"{lat}, {lon}")
-        return location.address if location else "Address not found"
-    except:
+        geolocator = Nominatim(user_agent="civic_issue_app/1.0 (contact: support@example.com)")
+        # Request detailed address with higher zoom for POI-level names
+        location = geolocator.reverse(
+            (lat, lon),
+            exactly_one=True,
+            addressdetails=True,
+            zoom=18,
+            language='en'
+        )
+        if not location:
+            return "Address not found"
+        # Prefer a friendly place name if available
+        addr = location.raw.get('address', {}) if hasattr(location, 'raw') else {}
+        parts = []
+        for key in ['name', 'amenity', 'building', 'shop', 'poi']:
+            val = addr.get(key)
+            if val:
+                parts.append(val)
+                break
+        # Road / house no
+        road_bits = []
+        if addr.get('house_number'):
+            road_bits.append(addr.get('house_number'))
+        if addr.get('road'):
+            road_bits.append(addr.get('road'))
+        if road_bits:
+            parts.append(' '.join(road_bits))
+        # Area / city
+        for key in ['neighbourhood', 'suburb', 'city_district', 'city', 'town', 'village']:
+            val = addr.get(key)
+            if val:
+                parts.append(val)
+                break
+        # State / postcode / country
+        if addr.get('state'):
+            parts.append(addr.get('state'))
+        if addr.get('postcode'):
+            parts.append(addr.get('postcode'))
+        if addr.get('country'):
+            parts.append(addr.get('country'))
+        friendly = ', '.join([p for p in parts if p])
+        return friendly or (location.address if hasattr(location, 'address') else "Address not found")
+    except Exception as e:
+        print(f"Reverse geocoding error: {e}")
         return "Address not found"
 
 def get_department_for_issue(issue_type):
     """Assign department based on issue type"""
     department_mapping = {
-        # Public Works Department
+        # Model categories (6 categories from MobileNetV3)
+        'damaged_signs': 'Traffic Department',
+        'fallen_trees': 'Public Works',
+        'garbage': 'Sanitation',
+        'graffiti': 'Public Works',
+        'illegal_parking': 'Traffic Department',
+        'potholes': 'Public Works',
+        
+        # Legacy categories (for backward compatibility)
         'pothole': 'Public Works',
         'street_light': 'Public Works',
         'sidewalk_damage': 'Public Works',
@@ -119,7 +210,6 @@ def get_department_for_issue(issue_type):
         'traffic_light': 'Traffic Department',
         
         # Sanitation
-        'garbage': 'Sanitation',
         'waste_management': 'Sanitation',
         'cleanliness': 'Sanitation',
         
@@ -205,14 +295,46 @@ Nagrik Nivedan Platform
 def classify_issue():
     try:
         data = request.json
-        image_data = data.get('image')
+        image_data = data.get('image') if data else None
+        mime_hint = None
         
         if not image_data:
             return jsonify({'error': 'No image provided'}), 400
         
-        # Decode base64 image
-        image_bytes = base64.b64decode(image_data.split(',')[1])
-        image = Image.open(io.BytesIO(image_bytes))
+        # Decode base64 image (supports both data URL and raw base64)
+        try:
+            if isinstance(image_data, str) and image_data.startswith('data:image'):
+                # data URL format: data:image/<type>;base64,<payload>
+                try:
+                    header, payload = image_data.split(',', 1)
+                    # Example header: data:image/webp;base64
+                    if ';' in header and ':' in header:
+                        mime_hint = header.split(':', 1)[1].split(';', 1)[0]  # image/webp, image/jpeg, etc.
+                    image_data = payload
+                except Exception:
+                    # Fallback if split fails
+                    image_data = image_data.split(',', 1)[1]
+            image_bytes = base64.b64decode(image_data)
+        except Exception:
+            return jsonify({'error': 'Invalid image format. Expected a base64-encoded image string.'}), 400
+        
+        # Open image (PIL first, then OpenCV fallback for formats like WEBP)
+        try:
+            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        except Exception:
+            try:
+                # Fallback: OpenCV decode (handles webp if build supports it)
+                npbuf = np.frombuffer(image_bytes, np.uint8)
+                cv_img = cv2.imdecode(npbuf, cv2.IMREAD_COLOR)  # BGR
+                if cv_img is None:
+                    raise ValueError("cv2.imdecode returned None")
+                cv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+                image = Image.fromarray(cv_img)
+            except Exception:
+                msg = 'Failed to decode image bytes.'
+                if mime_hint:
+                    msg += f' mime={mime_hint}'
+                return jsonify({'error': msg}), 400
         
         # Convert to numpy array for processing
         image_array = np.array(image)
@@ -223,7 +345,12 @@ def classify_issue():
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("Classification endpoint error:", e)
+        print(traceback.format_exc())
+        return jsonify({
+            'error': 'Internal server error during classification.',
+            'detail': str(e)
+        }), 500
 
 @app.route('/api/submit-complaint', methods=['POST'])
 def submit_complaint():
@@ -233,7 +360,13 @@ def submit_complaint():
         # Get location details
         lat = data.get('latitude')
         lon = data.get('longitude')
-        address = get_address_from_coords(lat, lon) if lat and lon else "Location not provided"
+        # Prefer client-provided address if available; fallback to reverse geocoding
+        if data.get('address'):
+            address = data.get('address')
+        elif lat is not None and lon is not None:
+            address = get_address_from_coords(lat, lon)
+        else:
+            address = "Location not provided"
         
         # Assign department based on issue type
         assigned_department = get_department_for_issue(data.get('issue_type'))
@@ -251,11 +384,9 @@ def submit_complaint():
         if data.get('image'):
             try:
                 # Create images directory if it doesn't exist
-                import os
                 os.makedirs('uploads', exist_ok=True)
                 
                 # Generate unique filename
-                import uuid
                 filename = f"{uuid.uuid4().hex}.jpg"
                 image_path = f"uploads/{filename}"
                 
@@ -322,7 +453,7 @@ def get_complaints_map():
         lon = request.args.get('lon', type=float)
         radius = request.args.get('radius', 5, type=float)  # km
         
-        if not lat or not lon:
+        if lat is None or lon is None:
             return jsonify({'error': 'Latitude and longitude required'}), 400
         
         # Get complaints within radius

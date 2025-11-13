@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import ImageCapture from '../components/ImageCapture';
 import LocationDetails from '../components/LocationDetails';
+import MapPicker from '../components/MapPicker';
 import { MapPin, FileText, Send, Loader } from 'lucide-react';
 import axios from 'axios';
 
@@ -21,6 +22,10 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
   const [classificationResult, setClassificationResult] = useState(null);
   const [manualLocationInput, setManualLocationInput] = useState('');
   const [showManualLocation, setShowManualLocation] = useState(false);
+  const [deviceCoords, setDeviceCoords] = useState(null);
+  const [geoAccuracy, setGeoAccuracy] = useState(null);
+  const [geoTimestamp, setGeoTimestamp] = useState(null);
+  const [geoWatchId, setGeoWatchId] = useState(null);
   const navigate = useNavigate();
 
   // Get user location
@@ -46,6 +51,9 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
             longitude: position.coords.longitude,
             address: 'Getting address...'
           };
+          setDeviceCoords({ latitude: location.latitude, longitude: location.longitude });
+          setGeoAccuracy(position.coords.accuracy || null);
+          setGeoTimestamp(new Date(position.timestamp));
           setUserLocation(location);
           setFormData(prev => ({
             ...prev,
@@ -78,12 +86,60 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
         {
           enableHighAccuracy: true,
           timeout: 15000,
-          maximumAge: 300000 // 5 minutes
+          maximumAge: 0 // force fresh reading
         }
       );
     } else {
       toast.error('Geolocation is not supported by this browser.');
     }
+  };
+
+  // Start a short "precision" session to refine GPS, auto-stops when accurate or timed out
+  const improveAccuracy = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by this browser.');
+      return;
+    }
+    // Clear any previous watch
+    if (geoWatchId != null) {
+      try { navigator.geolocation.clearWatch(geoWatchId); } catch {}
+      setGeoWatchId(null);
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setGeoAccuracy(accuracy || null);
+        setGeoTimestamp(new Date(position.timestamp));
+        setDeviceCoords({ latitude, longitude });
+        setFormData(prev => ({ ...prev, latitude, longitude }));
+        setUserLocation(prev => ({ ...(prev || {}), latitude, longitude }));
+        getAddressFromCoords(latitude, longitude);
+        // Stop early if accuracy is good
+        if (accuracy != null && accuracy <= 20) {
+          try { navigator.geolocation.clearWatch(watchId); } catch {}
+          setGeoWatchId(null);
+          toast.success('High-accuracy location acquired');
+        }
+      },
+      (error) => {
+        console.error('Accuracy watch error:', error);
+        toast.error('Unable to improve location accuracy.');
+        try { navigator.geolocation.clearWatch(watchId); } catch {}
+        setGeoWatchId(null);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 20000
+      }
+    );
+    setGeoWatchId(watchId);
+    // Safety stop after 15s
+    setTimeout(() => {
+      try { navigator.geolocation.clearWatch(watchId); } catch {}
+      setGeoWatchId(null);
+    }, 15000);
+    toast('Improving location accuracy...', { icon: '📍' });
   };
 
   const getAddressFromCoords = async (lat, lng) => {
@@ -161,6 +217,29 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
     }
   };
 
+  const formatDistance = (lat1, lon1, lat2, lon2) => {
+    try {
+      const R = 6371e3; // metres
+      const toRad = (deg) => deg * Math.PI / 180;
+      const φ1 = toRad(lat1);
+      const φ2 = toRad(lat2);
+      const Δφ = toRad(lat2 - lat1);
+      const Δλ = toRad(lon2 - lon1);
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const d = R * c; // in metres
+      if (d < 1000) {
+        return `${Math.round(d)} m`;
+      }
+      return `${(d/1000).toFixed(2)} km`;
+    } catch {
+      return 'N/A';
+    }
+  };
+
   const handleManualLocationSubmit = () => {
     if (manualLocationInput.trim()) {
       const manualAddress = {
@@ -213,8 +292,11 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
         issueType: response.data.issue_type 
       }));
     } catch (error) {
-      console.error('Classification error:', error);
-      toast.error('Failed to classify the image. Please try again.');
+      // Surface backend error details to help diagnose
+      const serverData = error?.response?.data;
+      console.error('Classification error:', error, serverData);
+      const detail = serverData?.detail || serverData?.error || error?.message || 'Unknown error';
+      toast.error(`Failed to classify the image. ${detail}`);
     } finally {
       setIsLoading(false);
     }
@@ -295,6 +377,46 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
                   coordinates={{ latitude: formData.latitude, longitude: formData.longitude }}
                   detailedAddress={formData.locationDetails}
                 />
+                <div className="mt-3">
+                  <p className="text-sm text-gray-600 mb-2">Adjust the pin if needed:</p>
+                  <MapPicker
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onChange={(lat, lng) => {
+                      setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+                      setUserLocation(prev => ({ ...(prev || {}), latitude: lat, longitude: lng }));
+                      getAddressFromCoords(lat, lng);
+                    }}
+                  />
+                  <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                    <button
+                      type="button"
+                      onClick={getCurrentLocation}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Use current location
+                    </button>
+                    <button
+                      type="button"
+                      onClick={improveAccuracy}
+                      className="text-blue-600 hover:text-blue-700 font-medium ml-4"
+                    >
+                      Improve accuracy
+                    </button>
+                    {deviceCoords && formData.latitude != null && formData.longitude != null && (
+                      <span>
+                        Distance to pin: {formatDistance(deviceCoords.latitude, deviceCoords.longitude, formData.latitude, formData.longitude)}
+                      </span>
+                    )}
+                  </div>
+                  {(geoAccuracy != null || geoTimestamp) && (
+                    <div className="mt-1 text-xs text-gray-500">
+                      {geoAccuracy != null && <span>GPS accuracy ~ {Math.round(geoAccuracy)} m</span>}
+                      {geoAccuracy != null && geoTimestamp && <span> • </span>}
+                      {geoTimestamp && <span>updated {geoTimestamp.toLocaleTimeString()}</span>}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             
@@ -389,6 +511,46 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
                 coordinates={{ latitude: formData.latitude, longitude: formData.longitude }}
                 detailedAddress={formData.locationDetails}
               />
+              <div>
+                <p className="text-sm text-gray-600 mb-2">Fine-tune location by dragging the pin:</p>
+                <MapPicker
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onChange={(lat, lng) => {
+                    setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+                    setUserLocation(prev => ({ ...(prev || {}), latitude: lat, longitude: lng }));
+                    getAddressFromCoords(lat, lng);
+                  }}
+                />
+                <div className="flex items-center justify-between mt-2 text-sm text-gray-600">
+                  <button
+                    type="button"
+                    onClick={getCurrentLocation}
+                    className="text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Use current location
+                  </button>
+                  <button
+                    type="button"
+                    onClick={improveAccuracy}
+                    className="text-blue-600 hover:text-blue-700 font-medium ml-4"
+                  >
+                    Improve accuracy
+                  </button>
+                  {deviceCoords && formData.latitude != null && formData.longitude != null && (
+                    <span>
+                      Distance to pin: {formatDistance(deviceCoords.latitude, deviceCoords.longitude, formData.latitude, formData.longitude)}
+                    </span>
+                  )}
+                </div>
+                {(geoAccuracy != null || geoTimestamp) && (
+                  <div className="mt-1 text-xs text-gray-500">
+                    {geoAccuracy != null && <span>GPS accuracy ~ {Math.round(geoAccuracy)} m</span>}
+                    {geoAccuracy != null && geoTimestamp && <span> • </span>}
+                    {geoTimestamp && <span>updated {geoTimestamp.toLocaleTimeString()}</span>}
+                  </div>
+                )}
+              </div>
 
               {/* Manual Location Input Option */}
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">

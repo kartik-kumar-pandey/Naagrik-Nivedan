@@ -32,6 +32,10 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+*.env.production
+env_production.txt
+backend/env_production.txt
 
 # IDE
 .vscode/
@@ -47,6 +51,8 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+# Keep backend/instance/ directory but ignore DB files in root instance/
+instance/
 
 # Logs
 logs
@@ -103,3 +109,19 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
+
+# User uploads (test images and user-generated content)
+backend/uploads/
+uploads/
+
+# Jupyter notebooks (optional - uncomment if you don't want to track notebooks)
+# *.ipynb
+.ipynb_checkpoints/
+
+# Training scripts (optional - keep if you want to track training code)
+# Uncomment if you want to ignore training scripts
+# complete_training_colab.py
+# save_model_for_colab.py
+# backend/save_model_simple.py
+# backend/download_model_from_colab.py
+# backend/train_model.py

@@ -1,5 +1,16 @@
 import React from 'react';
 import { MapPin, Navigation } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix default marker icons for Leaflet when bundled
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
 
 const LocationDetails = ({ location, coordinates, detailedAddress }) => {
   // Parse detailed location information
@@ -166,6 +177,30 @@ const LocationDetails = ({ location, coordinates, detailedAddress }) => {
           {locationDetails.completeAddress}
         </p>
       </div>
+      
+      {coordinates && coordinates.latitude != null && coordinates.longitude != null && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-600 mb-2">Map Preview:</label>
+          <div className="rounded overflow-hidden border" style={{ height: 220 }}>
+            <MapContainer
+              center={[coordinates.latitude, coordinates.longitude]}
+              zoom={16}
+              style={{ height: '100%', width: '100%' }}
+              scrollWheelZoom={false}
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <Marker position={[coordinates.latitude, coordinates.longitude]}>
+                <Popup>
+                  {locationDetails.completeAddress || 'Selected Location'}
+                </Popup>
+              </Marker>
+            </MapContainer>
+          </div>
+        </div>
+      )}
       
       {coordinates && (
         <div className="mt-4 flex items-center space-x-2 text-sm text-gray-600">
