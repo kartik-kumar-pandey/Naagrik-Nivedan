@@ -6,6 +6,9 @@ import LocationDetails from '../components/LocationDetails';
 import MapPicker from '../components/MapPicker';
 import { MapPin, FileText, Send, Loader } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
+import { createComplaint } from '../services/complaintsService';
+import { API_BASE_URL } from '../config';
 
 const ReportIssue = ({ userLocation, setUserLocation }) => {
   const [step, setStep] = useState(1);
@@ -27,6 +30,7 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
   const [geoTimestamp, setGeoTimestamp] = useState(null);
   const [geoWatchId, setGeoWatchId] = useState(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Get user location
   useEffect(() => {
@@ -43,55 +47,101 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
   }, [userLocation]);
 
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            address: 'Getting address...'
-          };
-          setDeviceCoords({ latitude: location.latitude, longitude: location.longitude });
-          setGeoAccuracy(position.coords.accuracy || null);
-          setGeoTimestamp(new Date(position.timestamp));
-          setUserLocation(location);
-          setFormData(prev => ({
-            ...prev,
-            latitude: location.latitude,
-            longitude: location.longitude
-          }));
-          
-          // Get address from coordinates
-          getAddressFromCoords(location.latitude, location.longitude);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          let errorMessage = 'Unable to get your location. ';
-          switch(error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage += 'Please allow location access and try again.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage += 'Location information is unavailable.';
-              break;
-            case error.TIMEOUT:
-              errorMessage += 'Location request timed out. Please try again.';
-              break;
-            default:
-              errorMessage += 'Please enable location services.';
-              break;
-          }
-          toast.error(errorMessage);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0 // force fresh reading
-        }
-      );
-    } else {
+    if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by this browser.');
+      return;
     }
+
+    // Clear any previous watch
+    if (geoWatchId != null) {
+      try { 
+        navigator.geolocation.clearWatch(geoWatchId); 
+      } catch {}
+      setGeoWatchId(null);
+    }
+
+    // Use watchPosition for high accuracy (same as improveAccuracy)
+    // This continuously updates location until accurate or timeout
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        
+        const location = {
+          latitude,
+          longitude,
+          address: 'Getting address...'
+        };
+        
+        setGeoAccuracy(accuracy || null);
+        setGeoTimestamp(new Date(position.timestamp));
+        setDeviceCoords({ latitude, longitude });
+        setFormData(prev => ({
+          ...prev,
+          latitude,
+          longitude
+        }));
+        setUserLocation(location);
+        
+        // Get address from coordinates
+        getAddressFromCoords(latitude, longitude);
+        
+        // Stop early if accuracy is good (<= 20 meters)
+        if (accuracy != null && accuracy <= 20) {
+          try { 
+            navigator.geolocation.clearWatch(watchId); 
+          } catch {}
+          setGeoWatchId(null);
+          toast.success('High-accuracy location acquired');
+        }
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        let errorMessage = 'Unable to get your location. ';
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Please allow location access and try again.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage += 'Please enable location services.';
+            break;
+        }
+        toast.error(errorMessage);
+        // Clear watch on error
+        try { 
+          navigator.geolocation.clearWatch(watchId); 
+        } catch {}
+        setGeoWatchId(null);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0 // force fresh reading
+      }
+    );
+
+    setGeoWatchId(watchId);
+    
+    // Safety stop after 15 seconds if accuracy hasn't been achieved
+    setTimeout(() => {
+      if (geoWatchId === watchId) {
+        try { 
+          navigator.geolocation.clearWatch(watchId); 
+        } catch {}
+        setGeoWatchId(null);
+        // Only show message if we still don't have good accuracy
+        if (geoAccuracy === null || geoAccuracy > 20) {
+          toast('Location accuracy improved. You can continue or click "Improve Accuracy" for better precision.', { icon: '📍' });
+        }
+      }
+    }, 15000);
+    
+    toast('Acquiring high-accuracy location...', { icon: '📍' });
   };
 
   // Start a short "precision" session to refine GPS, auto-stops when accurate or timed out
@@ -283,7 +333,7 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
   const classifyImage = async (imageData) => {
     setIsLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/classify-issue', {
+      const response = await axios.post(`${API_BASE_URL}/api/classify-issue`, {
         image: imageData
       });
       setClassificationResult(response.data);
@@ -304,32 +354,129 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!user || !user.uid) {
+      toast.error('You must be logged in to submit a complaint.');
+      navigate('/login');
+      return;
+    }
+
+    if (!formData.issueType) {
+      toast.error('Please select or confirm the issue type.');
+      return;
+    }
+
+    if (!formData.description || formData.description.trim() === '') {
+      toast.error('Please provide a description of the issue.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/submit-complaint', {
-        ...formData,
-        user_id: 'user_' + Date.now() // Simple user ID generation
-      });
+      // Map issue types to departments (similar to backend logic)
+      const getDepartmentForIssueType = (issueType) => {
+        const departmentMap = {
+          'potholes': 'Public Works',
+          'garbage': 'Sanitation',
+          'graffiti': 'Public Works',
+          'fallen_trees': 'Public Works',
+          'damaged_signs': 'Traffic Department',
+          'illegal_parking': 'Traffic Department',
+          'street_light': 'Public Works',
+          'water_leak': 'Water Department',
+          'traffic_signal': 'Traffic Department',
+          'sidewalk_damage': 'Public Works',
+          'drainage': 'Public Works',
+          'health_issue': 'Health Department',
+          'medical_emergency': 'Health Department',
+          'school_issue': 'Education Department',
+          'education_facility': 'Education Department'
+        };
+        return departmentMap[issueType] || 'Public Works';
+      };
+
+      // Determine priority based on issue type
+      const getPriority = (issueType) => {
+        const highPriorityTypes = ['medical_emergency', 'water_leak', 'traffic_signal'];
+        return highPriorityTypes.includes(issueType) ? 'high' : 'normal';
+      };
+
+      // Prepare complaint data for Firebase
+      const complaintData = {
+        image: formData.image, // Base64 encoded image
+        issueType: formData.issueType,
+        description: formData.description.trim(),
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        address: formData.address,
+        locationDetails: formData.locationDetails,
+        department: getDepartmentForIssueType(formData.issueType),
+        priority: getPriority(formData.issueType),
+        status: 'pending',
+        classificationResult: classificationResult || null,
+        formalComplaint: null, // Can be generated later if needed
+        userName: user.displayName || user.email || 'Citizen',
+        userEmail: user.email || '',
+        submittedBy: user.displayName || user.email || 'Citizen'
+      };
+
+      // Save to Firebase Realtime Database
+      const complaintId = await createComplaint(complaintData, user.uid);
+
+      // Optionally, also save to backend for ML/formal complaint generation
+      // You can uncomment this if you want to sync with your Flask backend
+      /*
+      try {
+        const backendData = {
+          image: formData.image,
+          issue_type: formData.issueType,
+          description: formData.description,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          address: formData.address,
+          user_id: user.uid,
+          firebase_id: complaintId // Link Firebase ID with backend
+        };
+        await axios.post(`${API_BASE_URL}/api/submit-complaint`, backendData);
+      } catch (backendError) {
+        console.warn('Failed to sync with backend, but saved to Firebase:', backendError);
+        // Don't fail the whole submission if backend sync fails
+      }
+      */
 
       toast.success('Complaint submitted successfully!');
-      navigate(`/track?complaint_id=${response.data.complaint_id}`);
+      navigate(`/track?complaint_id=${complaintId}`);
     } catch (error) {
       console.error('Submission error:', error);
-      toast.error('Failed to submit complaint. Please try again.');
+      toast.error(error.message || 'Failed to submit complaint. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Issue types that match the ML model classes and additional manual options
   const issueTypes = [
-    { value: 'pothole', label: 'Pothole', description: 'Road surface damage' },
-    { value: 'street_light', label: 'Street Light', description: 'Non-working street lights' },
+    // ML Model Classes (6 categories from MobileNetV3)
+    { value: 'damaged_signs', label: 'Damaged Signs', description: 'Traffic or road signs that are damaged' },
+    { value: 'fallen_trees', label: 'Fallen Trees', description: 'Trees that have fallen or need removal' },
     { value: 'garbage', label: 'Garbage', description: 'Waste management issues' },
+    { value: 'graffiti', label: 'Graffiti', description: 'Unauthorized graffiti or vandalism' },
+    { value: 'illegal_parking', label: 'Illegal Parking', description: 'Vehicles parked illegally' },
+    { value: 'potholes', label: 'Potholes', description: 'Road surface damage and potholes' },
+    // Additional manual options (not classified by ML)
+    { value: 'street_light', label: 'Street Light', description: 'Non-working street lights' },
     { value: 'water_leak', label: 'Water Leak', description: 'Water supply problems' },
     { value: 'traffic_signal', label: 'Traffic Signal', description: 'Traffic light issues' },
     { value: 'sidewalk_damage', label: 'Sidewalk Damage', description: 'Pedestrian pathway issues' },
     { value: 'drainage', label: 'Drainage', description: 'Water drainage problems' },
+    // Health Department
+    { value: 'health_issue', label: 'Health Issue', description: 'Public health concerns' },
+    { value: 'medical_emergency', label: 'Medical Emergency', description: 'Medical emergency situations' },
+    // Education Department
+    { value: 'school_issue', label: 'School Issue', description: 'School-related problems' },
+    { value: 'education_facility', label: 'Education Facility', description: 'Education facility issues' },
+    // Default
     { value: 'other', label: 'Other', description: 'Other civic issues' }
   ];
 

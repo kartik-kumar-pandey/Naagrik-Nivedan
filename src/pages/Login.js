@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, User, Shield, Building2, Eye, EyeOff } from 'lucide-react';
+import { LogIn, User, Shield, Building2, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [userType, setUserType] = useState('citizen');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    confirmPassword: '',
+    displayName: '',
     department: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login, isAuthenticated, isCitizen, isOfficial } = useAuth();
+  const { signIn, signUp, isAuthenticated, isCitizen, isOfficial } = useAuth();
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -41,33 +44,79 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // Simulate authentication
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Create user data
-      const userData = {
-        userType,
-        email: formData.email,
-        department: userType === 'official' ? formData.department : null
-      };
-      
-      // Use AuthContext login function
-      login(userData);
-      
-      toast.success(`Welcome ${userType === 'citizen' ? 'Citizen' : 'Official'}!`);
-      
-      // Small delay to show success message
-      setTimeout(() => {
-        // Redirect based on user type
-        if (userType === 'citizen') {
-          navigate('/');
-        } else {
-          navigate('/dashboard');
+      if (isSignUp) {
+        // Sign Up
+        if (formData.password !== formData.confirmPassword) {
+          toast.error('Passwords do not match');
+          setIsLoading(false);
+          return;
         }
-      }, 500);
-      
+
+        if (formData.password.length < 6) {
+          toast.error('Password must be at least 6 characters');
+          setIsLoading(false);
+          return;
+        }
+
+        if (userType === 'official' && !formData.department) {
+          toast.error('Please select a department');
+          setIsLoading(false);
+          return;
+        }
+
+        const userData = {
+          displayName: formData.displayName || formData.email.split('@')[0],
+          userType,
+          department: userType === 'official' ? formData.department : null
+        };
+
+        const result = await signUp(formData.email, formData.password, userData);
+        
+        if (result.success) {
+          toast.success('Account created successfully!');
+          setTimeout(() => {
+            if (userType === 'citizen') {
+              navigate('/');
+            } else {
+              navigate('/dashboard');
+            }
+          }, 500);
+        } else {
+          toast.error(result.error || 'Sign up failed. Please try again.');
+        }
+      } else {
+        // Sign In
+        const result = await signIn(formData.email, formData.password);
+        
+        if (result.success) {
+          toast.success('Signed in successfully!');
+          setTimeout(() => {
+            if (isCitizen()) {
+              navigate('/');
+            } else if (isOfficial()) {
+              navigate('/dashboard');
+            } else {
+              navigate('/');
+            }
+          }, 500);
+        } else {
+          // Handle specific Firebase auth errors
+          let errorMessage = 'Sign in failed. Please try again.';
+          if (result.error.includes('user-not-found')) {
+            errorMessage = 'No account found with this email. Please sign up first.';
+          } else if (result.error.includes('wrong-password')) {
+            errorMessage = 'Incorrect password. Please try again.';
+          } else if (result.error.includes('invalid-email')) {
+            errorMessage = 'Invalid email address.';
+          } else if (result.error.includes('too-many-requests')) {
+            errorMessage = 'Too many failed attempts. Please try again later.';
+          }
+          toast.error(errorMessage);
+        }
+      }
     } catch (error) {
-      toast.error('Login failed. Please try again.');
+      toast.error('An error occurred. Please try again.');
+      console.error('Auth error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -80,6 +129,13 @@ const Login = () => {
     }));
   };
 
+  // Reset confirm password when switching modes
+  useEffect(() => {
+    if (!isSignUp) {
+      setFormData(prev => ({ ...prev, confirmPassword: '' }));
+    }
+  }, [isSignUp]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -91,8 +147,44 @@ const Login = () => {
             Welcome to Civic Reporter
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to report issues or manage complaints
+            {isSignUp ? 'Create an account' : 'Sign in to report issues or manage complaints'}
           </p>
+        </div>
+
+        {/* Toggle between Sign In and Sign Up */}
+        <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(false);
+                setFormData(prev => ({ ...prev, confirmPassword: '', displayName: '' }));
+              }}
+              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                !isSignUp
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <LogIn className="w-4 h-4 inline mr-2" />
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(true);
+                setFormData(prev => ({ ...prev, confirmPassword: '', displayName: '' }));
+              }}
+              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                isSignUp
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <UserPlus className="w-4 h-4 inline mr-2" />
+              Sign Up
+            </button>
+          </div>
         </div>
 
         {/* User Type Selection */}
@@ -133,6 +225,24 @@ const Login = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Display Name Field (Sign Up only) */}
+            {isSignUp && (
+              <div>
+                <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name (Optional)
+                </label>
+                <input
+                  id="displayName"
+                  name="displayName"
+                  type="text"
+                  value={formData.displayName}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your name"
+                />
+              </div>
+            )}
+
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -165,6 +275,7 @@ const Login = () => {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your password"
+                  minLength={isSignUp ? 6 : undefined}
                 />
                 <button
                   type="button"
@@ -178,7 +289,31 @@ const Login = () => {
                   )}
                 </button>
               </div>
+              {isSignUp && (
+                <p className="mt-1 text-xs text-gray-500">Must be at least 6 characters</p>
+              )}
             </div>
+
+            {/* Confirm Password Field (Sign Up only) */}
+            {isSignUp && (
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirm Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Confirm your password"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Department Field (for officials) */}
             {userType === 'official' && (
@@ -213,60 +348,43 @@ const Login = () => {
               {isLoading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Signing in...</span>
+                  <span>{isSignUp ? 'Creating account...' : 'Signing in...'}</span>
                 </>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4" />
-                  <span>Sign In</span>
+                  {isSignUp ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+                  <span>{isSignUp ? 'Sign Up' : 'Sign In'}</span>
                 </>
               )}
             </button>
           </form>
-
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Demo Credentials:</h3>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p><strong>Citizen:</strong> citizen@example.com / password123</p>
-              <p><strong>Official:</strong> official@example.com / password123</p>
-            </div>
-            <div className="mt-3 flex space-x-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setUserType('citizen');
-                  setFormData({
-                    email: 'citizen@example.com',
-                    password: 'password123',
-                    department: ''
-                  });
-                }}
-                className="px-3 py-1 bg-blue-100 text-blue-700 text-xs rounded hover:bg-blue-200 transition-colors"
-              >
-                Fill Citizen
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUserType('official');
-                  setFormData({
-                    email: 'official@example.com',
-                    password: 'password123',
-                    department: 'Public Works'
-                  });
-                }}
-                className="px-3 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200 transition-colors"
-              >
-                Fill Official
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
         <div className="text-center text-sm text-gray-500">
-          <p>Don't have an account? Contact your administrator.</p>
+          {!isSignUp ? (
+            <p>
+              Don't have an account?{' '}
+              <button
+                type="button"
+                onClick={() => setIsSignUp(true)}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Sign up here
+              </button>
+            </p>
+          ) : (
+            <p>
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => setIsSignUp(false)}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Sign in here
+              </button>
+            </p>
+          )}
         </div>
       </div>
     </div>

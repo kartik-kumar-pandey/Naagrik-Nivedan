@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Search, Clock, MapPin, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
-import axios from 'axios';
+import { getComplaintById } from '../services/complaintsService';
 
 const TrackComplaint = () => {
   const [searchParams] = useSearchParams();
@@ -52,12 +52,19 @@ const TrackComplaint = () => {
     setError('');
     
     try {
-      const response = await axios.get(`http://localhost:5000/api/track-complaint/${id}`);
-      setComplaint(response.data);
+      const complaintData = await getComplaintById(id);
+      if (complaintData) {
+        setComplaint(complaintData);
+      } else {
+        setError('Complaint not found. Please check your complaint ID.');
+        toast.error('Complaint not found');
+        setComplaint(null);
+      }
     } catch (error) {
       console.error('Error fetching complaint:', error);
-      setError('Complaint not found. Please check your complaint ID.');
-      toast.error('Complaint not found');
+      setError('Failed to fetch complaint. Please try again.');
+      toast.error('Failed to fetch complaint');
+      setComplaint(null);
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +173,7 @@ const TrackComplaint = () => {
                 <div>
                   <p className="text-sm text-gray-600">Issue Type</p>
                   <p className="font-semibold text-gray-900 capitalize">
-                    {complaint.issue_type ? complaint.issue_type.replace('_', ' ') : 'Unknown'}
+                    {(complaint.issueType || complaint.issue_type || 'Unknown').replace(/_/g, ' ')}
                   </p>
                 </div>
                 <div>
@@ -192,7 +199,7 @@ const TrackComplaint = () => {
                   <div className="w-3 h-3 bg-blue-600 rounded-full mt-2"></div>
                   <div>
                     <p className="font-medium text-gray-900">Complaint Submitted</p>
-                    <p className="text-sm text-gray-600">{formatDate(complaint.created_at)}</p>
+                    <p className="text-sm text-gray-600">{formatDate(complaint.createdAt || complaint.created_at)}</p>
                   </div>
                 </div>
                 
@@ -220,7 +227,7 @@ const TrackComplaint = () => {
                   <div className="w-3 h-3 bg-gray-400 rounded-full mt-2"></div>
                   <div>
                     <p className="font-medium text-gray-900">Last Updated</p>
-                    <p className="text-sm text-gray-600">{formatDate(complaint.updated_at)}</p>
+                    <p className="text-sm text-gray-600">{formatDate(complaint.updatedAt || complaint.updated_at)}</p>
                   </div>
                 </div>
               </div>

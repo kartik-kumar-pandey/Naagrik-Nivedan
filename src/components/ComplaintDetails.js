@@ -1,74 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { X, MapPin, Calendar, User, Building2, AlertTriangle, CheckCircle, Clock, Eye, Download } from 'lucide-react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, MapPin, Calendar, User, Building2, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { database } from '../firebase';
+import { ref, get } from 'firebase/database';
 
-const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
-  const [complaint, setComplaint] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+const ComplaintDetails = ({ complaint, onClose, onStatusUpdate }) => {
+  const [localComplaint, setLocalComplaint] = useState(complaint);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [newStatus, setNewStatus] = useState('');
-  const [newPriority, setNewPriority] = useState('');
+  const [newStatus, setNewStatus] = useState(complaint?.status || 'pending');
+  const [newPriority, setNewPriority] = useState(complaint?.priority || 'normal');
+  const [submitterName, setSubmitterName] = useState(
+    complaint?.userName ||
+    complaint?.submittedBy ||
+    complaint?.user_name ||
+    complaint?.userId ||
+    complaint?.user_id ||
+    'Concerned Citizen'
+  );
 
   useEffect(() => {
-    if (complaintId) {
-      fetchComplaintDetails();
+    setLocalComplaint(complaint);
+    setNewStatus(complaint?.status || 'pending');
+    setNewPriority(complaint?.priority || 'normal');
+    const initialName =
+      complaint?.userName ||
+      complaint?.submittedBy ||
+      complaint?.user_name ||
+      complaint?.userId ||
+      complaint?.user_id;
+    if (initialName) {
+      setSubmitterName(initialName);
     }
-  }, [complaintId]);
 
-  const fetchComplaintDetails = async () => {
-    try {
-      setIsLoading(true);
-          const response = await axios.get(`${API_BASE_URL}/api/complaint/${complaintId}`);
-      setComplaint(response.data);
-      setNewStatus(response.data.status);
-      setNewPriority(response.data.priority);
-    } catch (error) {
-      console.error('Error fetching complaint details:', error);
-      // Fallback to mock data
-      setComplaint({
-        id: complaintId,
-        user_id: 'user@example.com',
-        issue_type: 'pothole',
-        status: 'pending',
-        priority: 'high',
-        latitude: 26.3843,
-        longitude: 80.3768,
-        address: 'Main Street, Kanpur',
-        description: 'Large pothole causing traffic issues',
-        formal_complaint: 'Formal complaint letter content...',
-        department: 'Public Works',
-        created_at: '2024-01-15T10:30:00Z',
-        updated_at: '2024-01-15T10:30:00Z'
-      });
-      setNewStatus('pending');
-      setNewPriority('high');
-    } finally {
-      setIsLoading(false);
+    const userId = complaint?.user_id || complaint?.userId;
+    if (!userId) {
+      if (!initialName) {
+        setSubmitterName('Concerned Citizen');
+      }
+      return;
     }
-  };
+
+    let cancelled = false;
+    const fetchSubmitter = async () => {
+      try {
+        const snapshot = await get(ref(database, `users_public/${userId}`));
+        if (!cancelled) {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            setSubmitterName(data.displayName || data.email || userId);
+          } else {
+            setSubmitterName(userId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load submitter profile:', error);
+        if (!cancelled) setSubmitterName(userId);
+      }
+    };
+
+    fetchSubmitter();
+    return () => {
+      cancelled = true;
+    };
+  }, [complaint]);
 
   const handleStatusUpdate = async () => {
+    if (!localComplaint?.id || !onStatusUpdate) return;
     try {
       setIsUpdating(true);
-          await axios.put(`${API_BASE_URL}/api/complaint/${complaintId}/update-status`, {
-        status: newStatus,
-        priority: newPriority
-      });
-      
-      // Update local state
-      setComplaint(prev => ({
+      await onStatusUpdate(localComplaint.id, newStatus, newPriority);
+
+      setLocalComplaint(prev => ({
         ...prev,
         status: newStatus,
         priority: newPriority,
         updated_at: new Date().toISOString()
       }));
-      
-      // Notify parent component
-      if (onStatusUpdate) {
-        onStatusUpdate(complaintId, newStatus, newPriority);
-      }
-      
     } catch (error) {
       console.error('Error updating complaint status:', error);
     } finally {
@@ -125,20 +132,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading complaint details...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!complaint) {
+  if (!localComplaint) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
@@ -158,8 +152,70 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
     );
   }
 
-  const statusConfig = getStatusIcon(complaint.status);
+  const issueType = localComplaint.issue_type || localComplaint.issueType;
+  const formattedIssueLabel = issueType ? issueType.replace(/_/g, ' ').toUpperCase() : 'UNKNOWN';
+  const departmentName = localComplaint.department || 'Department';
+  const trackingId = `${(departmentName || 'Department').replace(/\s+/g, '')}-TICKET-${localComplaint.id}`;
+  const submittedDate = formatDate(localComplaint.created_at || localComplaint.createdAt);
+  const citizenName = localComplaint.user_id || localComplaint.userId || 'Concerned Citizen';
+  const citizenAddress = localComplaint.address || 'Not Provided';
+  const complaintDescription = localComplaint.description || 'Not provided';
+  const priorityLabel = (localComplaint.priority || 'normal').toUpperCase();
+
+  const statusConfig = getStatusIcon(localComplaint.status);
   const StatusIcon = statusConfig.icon;
+
+  const formalComplaintText = useMemo(() => {
+    if (localComplaint.formal_complaint) return localComplaint.formal_complaint;
+
+    const today = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    return (
+`Date: ${today}
+
+To,
+The ${departmentName} Department
+City Administration
+
+Subject: Immediate attention required for ${formattedIssueLabel.toLowerCase()} at ${citizenAddress}
+
+Respected Sir/Madam,
+
+This is to inform you that a ${formattedIssueLabel.toLowerCase()} has been reported through the Nagrik Nivedan Platform with tracking ID ${trackingId}. The issue details are as follows:
+
+- Category: ${formattedIssueLabel} (AI-Identified)
+- Priority: ${priorityLabel}
+- Description: ${complaintDescription}
+- Location: ${citizenAddress}
+- Reported By: ${citizenName}
+- Submission Time: ${submittedDate}
+
+Given the potential impact of this issue, I request your department to kindly initiate prompt inspection and necessary remedial measures. Please keep the citizen informed through the portal regarding actions taken.
+
+Thank you for your prompt attention to civic welfare.
+
+Sincerely,
+Nagrik Nivedan Platform
+Complaint ID: ${trackingId}`
+    );
+  }, [localComplaint, departmentName, formattedIssueLabel, citizenAddress, citizenName, submittedDate, complaintDescription, trackingId, priorityLabel]);
+
+  const imageSrc = useMemo(() => {
+    if (!localComplaint) return null;
+    if (localComplaint.image_path) {
+      return `${API_BASE_URL}/api/image/${localComplaint.image_path}`;
+    }
+    if (localComplaint.image) {
+      const trimmed = localComplaint.image.trim();
+      if (trimmed.startsWith('data:image')) return trimmed;
+      return `data:image/jpeg;base64,${trimmed}`;
+    }
+    return null;
+  }, [localComplaint]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -167,13 +223,13 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
-            <span className="text-3xl">{getIssueIcon(complaint.issue_type)}</span>
+            <span className="text-3xl">{getIssueIcon(issueType)}</span>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
-                Complaint #{complaint.id}
+                Complaint #{localComplaint.id}
               </h2>
               <p className="text-gray-600">
-                {complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'Unknown Issue'}
+                {formattedIssueLabel}
               </p>
             </div>
           </div>
@@ -195,13 +251,13 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               </div>
               <div className="text-right">
                 <p className="text-sm text-blue-100">Report ID</p>
-                <p className="text-lg font-mono">{complaint.department?.replace(' ', '')}-TICKET-{complaint.id?.toString().padStart(5, '0')}</p>
+                <p className="text-lg font-mono">{trackingId}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
                 <span className="text-blue-200">To:</span>
-                <p className="font-semibold">{complaint.department} Department</p>
+                <p className="font-semibold">{departmentName} Department</p>
               </div>
               <div>
                 <span className="text-blue-200">From:</span>
@@ -209,7 +265,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               </div>
               <div>
                 <span className="text-blue-200">Category:</span>
-                <p className="font-semibold">{complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'UNKNOWN'} (AI-Identified)</p>
+                <p className="font-semibold">{formattedIssueLabel} (AI-Identified)</p>
               </div>
             </div>
           </div>
@@ -221,15 +277,15 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               <div className="flex items-center space-x-2">
                 <StatusIcon className={`w-5 h-5 ${statusConfig.color}`} />
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusConfig.bgColor} ${statusConfig.color}`}>
-                  {complaint.status ? complaint.status.replace('_', ' ').toUpperCase() : 'Unknown'}
+                  {localComplaint.status ? localComplaint.status.replace('_', ' ').toUpperCase() : 'Unknown'}
                 </span>
               </div>
             </div>
             
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-2">Priority</h3>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(complaint.priority)}`}>
-                {complaint.priority ? complaint.priority.toUpperCase() : 'Unknown'}
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(localComplaint.priority)}`}>
+                {localComplaint.priority ? localComplaint.priority.toUpperCase() : 'Unknown'}
               </span>
             </div>
           </div>
@@ -246,7 +302,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
                 <div className="flex items-center space-x-3">
                   <span className="text-sm font-medium text-gray-600">Category:</span>
                   <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold">
-                    {complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'UNKNOWN'} (AI-Identified)
+                    {formattedIssueLabel} (AI-Identified)
                   </span>
                 </div>
                 
@@ -254,12 +310,12 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
                 <div className="flex items-center space-x-3">
                   <span className="text-sm font-medium text-gray-600">Urgency:</span>
                   <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                    complaint.priority === 'urgent' ? 'bg-red-100 text-red-800' :
-                    complaint.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                    complaint.priority === 'normal' ? 'bg-yellow-100 text-yellow-800' :
+                    localComplaint.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                    localComplaint.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                    localComplaint.priority === 'normal' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-green-100 text-green-800'
                   }`}>
-                    {complaint.priority ? complaint.priority.toUpperCase() : 'NORMAL'} Priority
+                    {priorityLabel} Priority
                   </span>
                   <span className="text-sm text-gray-500">• Sentiment: Neutral</span>
                 </div>
@@ -277,17 +333,17 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Address:</h4>
-                  <p className="text-gray-700">{complaint.address}</p>
+                  <p className="text-gray-700">{citizenAddress}</p>
                 </div>
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Coordinates:</h4>
-                  {complaint.latitude && complaint.longitude ? (
+                  {localComplaint.latitude && localComplaint.longitude ? (
                     <div className="space-y-1">
                       <p className="text-sm text-gray-600">
-                        <span className="font-medium">Latitude:</span> {complaint.latitude.toFixed(6)}° N
+                        <span className="font-medium">Latitude:</span> {localComplaint.latitude.toFixed(6)}° N
                       </p>
                       <p className="text-sm text-gray-600">
-                        <span className="font-medium">Longitude:</span> {complaint.longitude.toFixed(6)}° E
+                        <span className="font-medium">Longitude:</span> {localComplaint.longitude.toFixed(6)}° E
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
                         📍 Captured from user's device GPS
@@ -308,11 +364,11 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               <span>Visual Evidence</span>
             </h3>
             <div className="bg-gray-50 rounded-lg p-4">
-              {complaint.image_path ? (
+              {imageSrc ? (
                 <div className="space-y-3">
                   <div className="relative">
                     <img 
-                      src={`${API_BASE_URL}/api/image/${complaint.image_path}`}
+                      src={imageSrc}
                       alt="Complaint Evidence"
                       className="w-full max-w-md h-64 object-cover rounded-lg border border-gray-200 shadow-sm"
                       onError={(e) => {
@@ -335,14 +391,16 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
                       <p className="font-medium text-gray-900">Photo Evidence</p>
                       <p className="text-sm text-gray-600">Submitted by citizen</p>
                     </div>
-                    <a 
-                      href={`${API_BASE_URL}/api/image/${complaint.image_path}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                    >
-                      View Full Size →
-                    </a>
+                    {imageSrc && (
+                      <a 
+                        href={imageSrc}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        View Full Size →
+                      </a>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -370,13 +428,13 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Unique Tracking ID:</h4>
                   <p className="text-lg font-mono text-blue-600 bg-white px-3 py-2 rounded border">
-                    {complaint.department?.replace(' ', '')}-TICKET-{complaint.id?.toString().padStart(5, '0')}
+                    {trackingId}
                   </p>
                 </div>
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Public Dashboard:</h4>
                   <p className="text-sm text-gray-600">
-                    Track progress at: <span className="text-blue-600">nagrik-nivedan.gov.in/track/{complaint.id}</span>
+                    Track progress at: <span className="text-blue-600">nagrik-nivedan.gov.in/track/{localComplaint.id}</span>
                   </p>
                 </div>
               </div>
@@ -384,7 +442,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
           </div>
 
           {/* Formal Complaint Letter */}
-          {complaint.formal_complaint && (
+          {formalComplaintText && (
             <div>
               <h3 className="font-semibold text-gray-900 mb-2 flex items-center space-x-2">
                 <span>📝</span>
@@ -392,7 +450,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               </h3>
               <div className="bg-white border-2 border-gray-200 rounded-lg p-6 shadow-sm">
                 <div className="font-mono text-sm text-gray-800 leading-relaxed whitespace-pre-wrap bg-gray-50 p-4 rounded border-l-4 border-blue-500">
-                  {complaint.formal_complaint}
+                  {formalComplaintText}
                 </div>
               </div>
             </div>
@@ -404,7 +462,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               <h3 className="font-semibold text-gray-900 mb-2">Submitted</h3>
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{formatDate(complaint.created_at)}</span>
+                <span className="text-gray-700">{formatDate(localComplaint.created_at || localComplaint.createdAt)}</span>
               </div>
             </div>
             
@@ -412,7 +470,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
               <h3 className="font-semibold text-gray-900 mb-2">Last Updated</h3>
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{formatDate(complaint.updated_at)}</span>
+                <span className="text-gray-700">{formatDate(localComplaint.updated_at || localComplaint.updatedAt)}</span>
               </div>
             </div>
           </div>
@@ -422,7 +480,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
             <h3 className="font-semibold text-gray-900 mb-2">Submitted By</h3>
             <div className="flex items-center space-x-2">
               <User className="w-4 h-4 text-gray-500" />
-              <span className="text-gray-700">{complaint.user_id}</span>
+              <span className="text-gray-700">{submitterName}</span>
             </div>
           </div>
 
@@ -431,7 +489,7 @@ const ComplaintDetails = ({ complaintId, onClose, onStatusUpdate }) => {
             <h3 className="font-semibold text-gray-900 mb-2">Assigned Department</h3>
             <div className="flex items-center space-x-2">
               <Building2 className="w-4 h-4 text-gray-500" />
-              <span className="text-gray-700">{complaint.department}</span>
+              <span className="text-gray-700">{departmentName}</span>
             </div>
           </div>
 

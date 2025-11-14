@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { MapPin, AlertTriangle, Eye, Filter, Search, Calendar, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import axios from 'axios';
+import { getAllComplaints, subscribeToAllComplaints } from '../services/complaintsService';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -34,74 +34,113 @@ const ComplaintsDashboard = () => {
 
   useEffect(() => {
     getCurrentLocation();
-    fetchAllComplaints();
-    fetchHeatmapData();
+    setIsLoading(true);
+    
+    // Subscribe to real-time updates - onValue fires immediately with current data
+    const unsubscribe = subscribeToAllComplaints((updatedComplaints) => {
+      setComplaints(updatedComplaints);
+      
+      // Update map center based on complaints
+      const complaintsWithLocation = updatedComplaints.filter(c => c.latitude && c.longitude);
+      if (complaintsWithLocation.length > 0) {
+        const avgLat = complaintsWithLocation.reduce((sum, c) => sum + c.latitude, 0) / complaintsWithLocation.length;
+        const avgLng = complaintsWithLocation.reduce((sum, c) => sum + c.longitude, 0) / complaintsWithLocation.length;
+        setMapCenter([avgLat, avgLng]);
+      }
+      
+      setIsLoading(false); // Set loading to false when data is received
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = [position.coords.latitude, position.coords.longitude];
-          setUserLocation(location);
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    // Use watchPosition for better accuracy with auto-stop
+    let watchId;
+    let accuracyCheckTimeout;
+    
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        const location = [latitude, longitude];
+        
+        setUserLocation(location);
+        
+        // Only update map center if we don't have complaints yet
+        if (complaints.length === 0) {
           setMapCenter(location);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
         }
-      );
-    }
+        
+        // Stop watching if accuracy is good (<= 20 meters)
+        if (accuracy != null && accuracy <= 20) {
+          if (watchId != null) {
+            navigator.geolocation.clearWatch(watchId);
+          }
+          if (accuracyCheckTimeout) {
+            clearTimeout(accuracyCheckTimeout);
+          }
+        }
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        if (watchId != null) {
+          navigator.geolocation.clearWatch(watchId);
+        }
+        if (accuracyCheckTimeout) {
+          clearTimeout(accuracyCheckTimeout);
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
+
+    // Safety timeout - stop after 10 seconds
+    accuracyCheckTimeout = setTimeout(() => {
+      if (watchId != null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    }, 10000);
   };
 
-  const fetchAllComplaints = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/all-complaints');
-      setComplaints(response.data.complaints);
-    } catch (error) {
-      console.error('Error fetching complaints:', error);
-      // Fallback to mock data if API fails
-      const mockComplaints = [
-        {
-          id: 1,
-          issue_type: 'pothole',
-          status: 'pending',
-          priority: 'high',
-          latitude: 26.4499,
-          longitude: 80.3319,
-          address: 'Kanpur, Uttar Pradesh 208015, India',
-          description: 'Large pothole on main road causing traffic issues',
-          created_at: '2024-01-15T10:30:00Z',
-          updated_at: '2024-01-15T10:30:00Z',
-          department: 'Public Works'
-        },
-        {
-          id: 2,
-          issue_type: 'street_light',
-          status: 'in_progress',
-          priority: 'normal',
-          latitude: 26.4500,
-          longitude: 80.3320,
-          address: 'Kanpur, Uttar Pradesh 208015, India',
-          description: 'Street light not working in residential area',
-          created_at: '2024-01-14T15:45:00Z',
-          updated_at: '2024-01-16T09:20:00Z',
-          department: 'Public Works'
-        }
-      ];
-      setComplaints(mockComplaints);
-    } finally {
-      setIsLoading(false);
-    }
+
+  const fetchHeatmapData = () => {
+    // Generate heatmap data from complaints
+    const complaintsWithLocation = complaints.filter(c => c.latitude && c.longitude);
+    
+    // Group complaints by location (rounded to 3 decimal places ~100m)
+    const locationGroups = {};
+    complaintsWithLocation.forEach(complaint => {
+      const lat = Math.round(complaint.latitude * 1000) / 1000;
+      const lng = Math.round(complaint.longitude * 1000) / 1000;
+      const key = `${lat},${lng}`;
+      
+      if (!locationGroups[key]) {
+        locationGroups[key] = {
+          lat,
+          lng,
+          count: 0,
+          complaints: []
+        };
+      }
+      
+      locationGroups[key].count++;
+      locationGroups[key].complaints.push(complaint);
+    });
+    
+    setHeatmapData(Object.values(locationGroups));
   };
 
-  const fetchHeatmapData = async () => {
-    try {
-      const response = await axios.get('http://localhost:5000/api/heatmap-data');
-      setHeatmapData(response.data);
-    } catch (error) {
-      console.error('Error fetching heatmap data:', error);
-    }
-  };
+  // Update heatmap when complaints change
+  useEffect(() => {
+    fetchHeatmapData();
+  }, [complaints]);
 
   const getStatusIcon = (status) => {
     const icons = {
@@ -127,9 +166,16 @@ const ComplaintsDashboard = () => {
   const getIssueIcon = (issueType) => {
     if (!issueType) return '⚠️';
     const icons = {
-      pothole: '🕳️',
-      street_light: '💡',
+      // ML Model Classes
+      damaged_signs: '🚧',
+      fallen_trees: '🌳',
       garbage: '🗑️',
+      graffiti: '🎨',
+      illegal_parking: '🚗',
+      potholes: '🕳️',
+      // Additional types
+      pothole: '🕳️', // Legacy support
+      street_light: '💡',
       water_leak: '💧',
       traffic_signal: '🚦',
       sidewalk_damage: '🚶',
@@ -142,7 +188,10 @@ const ComplaintsDashboard = () => {
   const filteredComplaints = complaints.filter(complaint => {
     if (!complaint) return false;
     
-    if (filters.issueType !== 'all' && complaint.issue_type !== filters.issueType) {
+    // Support both camelCase and snake_case field names
+    const issueType = complaint.issueType || complaint.issue_type;
+    
+    if (filters.issueType !== 'all' && issueType !== filters.issueType) {
       return false;
     }
     if (filters.status !== 'all' && complaint.status !== filters.status) {
@@ -158,6 +207,18 @@ const ComplaintsDashboard = () => {
     }
     return true;
   });
+
+  // Calculate map center from filtered complaints
+  const getMapCenterFromComplaints = () => {
+    const complaintsWithLocation = filteredComplaints.filter(c => c.latitude && c.longitude);
+    if (complaintsWithLocation.length === 0) {
+      return mapCenter;
+    }
+    
+    const avgLat = complaintsWithLocation.reduce((sum, c) => sum + c.latitude, 0) / complaintsWithLocation.length;
+    const avgLng = complaintsWithLocation.reduce((sum, c) => sum + c.longitude, 0) / complaintsWithLocation.length;
+    return [avgLat, avgLng];
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not available';
@@ -352,11 +413,11 @@ const ComplaintsDashboard = () => {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-4">
-                      <div className="text-2xl">{getIssueIcon(complaint.issue_type)}</div>
+                      <div className="text-2xl">{getIssueIcon(complaint.issueType || complaint.issue_type)}</div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-2">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'Unknown'}
+                            {(complaint.issueType || complaint.issue_type || 'Unknown').replace(/_/g, ' ').toUpperCase()}
                           </h3>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(complaint.priority)}`}>
                             {complaint.priority ? complaint.priority.toUpperCase() : 'Unknown'}
@@ -367,7 +428,7 @@ const ComplaintsDashboard = () => {
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <span>ID: #{complaint.id}</span>
                           <span>Department: {complaint.department}</span>
-                          <span>Created: {formatDate(complaint.created_at)}</span>
+                          <span>Created: {formatDate(complaint.createdAt || complaint.created_at)}</span>
                         </div>
                       </div>
                     </div>
@@ -386,9 +447,10 @@ const ComplaintsDashboard = () => {
           /* Map View */
           <div className="relative">
             <MapContainer
-              center={mapCenter}
-              zoom={13}
+              center={getMapCenterFromComplaints()}
+              zoom={filteredComplaints.length === 0 ? 10 : filteredComplaints.length === 1 ? 15 : 13}
               style={{ height: '600px', width: '100%' }}
+              key={`${filteredComplaints.length}-${mapCenter[0]}-${mapCenter[1]}`}
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -408,70 +470,81 @@ const ComplaintsDashboard = () => {
               )}
 
               {/* Complaint Markers */}
-              {filteredComplaints.map((complaint) => (
-                <Marker
-                  key={complaint.id}
-                  position={[complaint.latitude, complaint.longitude]}
-                >
-                  <Popup>
-                    <div className="p-2">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <span className="text-lg">{getIssueIcon(complaint.issue_type)}</span>
-                        <span className="font-semibold text-gray-900">
-                          {complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'Unknown'}
-                        </span>
+              {filteredComplaints.map((complaint) => {
+                const lat = complaint.latitude;
+                const lng = complaint.longitude;
+                
+                if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
+                
+                return (
+                  <Marker
+                    key={complaint.id}
+                    position={[lat, lng]}
+                  >
+                    <Popup>
+                      <div className="p-2">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="text-lg">{getIssueIcon(complaint.issueType || complaint.issue_type)}</span>
+                          <span className="font-semibold text-gray-900">
+                            {(complaint.issueType || complaint.issue_type || 'Unknown').replace(/_/g, ' ').toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <p><strong>Status:</strong> {complaint.status || 'Unknown'}</p>
+                          <p><strong>Priority:</strong> {complaint.priority || 'Unknown'}</p>
+                          <p><strong>Department:</strong> {complaint.department || 'Not assigned'}</p>
+                          <p><strong>Created:</strong> {formatDate(complaint.createdAt || complaint.created_at)}</p>
+                        </div>
                       </div>
-                      <div className="space-y-1 text-sm">
-                        <p><strong>Status:</strong> {complaint.status || 'Unknown'}</p>
-                        <p><strong>Priority:</strong> {complaint.priority || 'Unknown'}</p>
-                        <p><strong>Department:</strong> {complaint.department || 'Not assigned'}</p>
-                        <p><strong>Created:</strong> {formatDate(complaint.created_at)}</p>
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
+                    </Popup>
+                  </Marker>
+                );
+              })}
 
               {/* Red Zones (Heatmap Circles) */}
-              {showHeatmap && heatmapData.map((zone, index) => (
-                <Circle
-                  key={index}
-                  center={[zone.lat, zone.lng]}
-                  radius={zone.count * 50} // Radius based on complaint count
-                  pathOptions={{
-                    color: zone.count > 3 ? '#dc2626' : '#f59e0b', // Red for high density, orange for medium
-                    fillColor: zone.count > 3 ? '#dc2626' : '#f59e0b',
-                    fillOpacity: zone.count > 3 ? 0.4 : 0.3,
-                    weight: 2
-                  }}
-                >
-                  <Popup>
-                    <div className="p-2">
-                      <div className="text-center">
-                        <div className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium ${
-                          zone.count > 3 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
-                        }`}>
-                          <AlertTriangle className="w-4 h-4 mr-1" />
-                          {zone.count} Complaints
+              {showHeatmap && heatmapData.map((zone, index) => {
+                if (!zone.lat || !zone.lng || isNaN(zone.lat) || isNaN(zone.lng)) return null;
+                
+                return (
+                  <Circle
+                    key={index}
+                    center={[zone.lat, zone.lng]}
+                    radius={zone.count * 50} // Radius based on complaint count
+                    pathOptions={{
+                      color: zone.count > 3 ? '#dc2626' : '#f59e0b', // Red for high density, orange for medium
+                      fillColor: zone.count > 3 ? '#dc2626' : '#f59e0b',
+                      fillOpacity: zone.count > 3 ? 0.4 : 0.3,
+                      weight: 2
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-2">
+                        <div className="text-center">
+                          <div className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium ${
+                            zone.count > 3 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            <AlertTriangle className="w-4 h-4 mr-1" />
+                            {zone.count} Complaints
+                          </div>
+                        </div>
+                        <div className="mt-2 text-sm">
+                          <p className="font-semibold text-gray-900 mb-1">Issues in this area:</p>
+                          <div className="space-y-1">
+                            {(zone.complaints || []).map((complaint, idx) => (
+                              <div key={idx} className="flex items-center space-x-2">
+                                <span className="text-sm">{getIssueIcon(complaint.issueType || complaint.issue_type)}</span>
+                                <span className="text-xs">
+                                  {(complaint.issueType || complaint.issue_type || 'Unknown').replace(/_/g, ' ')} - {complaint.status || 'Unknown'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                      <div className="mt-2 text-sm">
-                        <p className="font-semibold text-gray-900 mb-1">Issues in this area:</p>
-                        <div className="space-y-1">
-                          {zone.complaints.map((complaint, idx) => (
-                            <div key={idx} className="flex items-center space-x-2">
-                              <span className="text-sm">{getIssueIcon(complaint.issue_type)}</span>
-                              <span className="text-xs">
-                                {complaint.issue_type ? complaint.issue_type.replace('_', ' ') : 'Unknown'} - {complaint.status || 'Unknown'}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </Popup>
-                </Circle>
-              ))}
+                    </Popup>
+                  </Circle>
+                );
+              })}
             </MapContainer>
 
             {/* Map Legend */}
@@ -526,9 +599,9 @@ const ComplaintsDashboard = () => {
               
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
-                  <span className="text-2xl">{getIssueIcon(selectedComplaint.issue_type)}</span>
+                  <span className="text-2xl">{getIssueIcon(selectedComplaint.issueType || selectedComplaint.issue_type)}</span>
                   <h3 className="text-lg font-semibold">
-                    {selectedComplaint.issue_type ? selectedComplaint.issue_type.replace('_', ' ').toUpperCase() : 'Unknown'}
+                    {(selectedComplaint.issueType || selectedComplaint.issue_type || 'Unknown').replace(/_/g, ' ').toUpperCase()}
                   </h3>
                 </div>
                 
@@ -564,11 +637,11 @@ const ComplaintsDashboard = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Created</label>
-                    <p className="text-gray-900">{formatDate(selectedComplaint.created_at)}</p>
+                    <p className="text-gray-900">{formatDate(selectedComplaint.createdAt || selectedComplaint.created_at)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-600">Last Updated</label>
-                    <p className="text-gray-900">{formatDate(selectedComplaint.updated_at)}</p>
+                    <p className="text-gray-900">{formatDate(selectedComplaint.updatedAt || selectedComplaint.updated_at)}</p>
                   </div>
                 </div>
               </div>

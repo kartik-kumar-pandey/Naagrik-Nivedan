@@ -1,16 +1,25 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Camera, Search, Home, BarChart3, LogOut, User, Building2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const Header = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isCitizen, isOfficial, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    setShowUserMenu(false);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setShowUserMenu(false);
+      toast.success('Signed out successfully');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Error signing out. Please try again.');
+    }
   };
 
   const getNavItems = () => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import { MapPin, User, AlertTriangle, CheckCircle, Clock, Eye, Map, List, Filter, Search } from 'lucide-react';
-import axios from 'axios';
+import { getUserComplaints, subscribeToUserComplaints } from '../services/complaintsService';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default markers in react-leaflet
@@ -15,7 +15,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const CitizenDashboard = () => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [complaints, setComplaints] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
@@ -32,70 +32,30 @@ const CitizenDashboard = () => {
   });
 
   useEffect(() => {
-    fetchUserComplaints();
-  }, []);
-
-  const fetchUserComplaints = async () => {
-    try {
-      setIsLoading(true);
-      // Try to fetch from backend
-      const response = await axios.get('http://localhost:5000/api/all-complaints');
-      const allComplaints = response.data.complaints || [];
-      
-      // Filter complaints for this user (in a real app, this would be by user ID)
-      const userComplaints = allComplaints.filter(complaint => 
-        complaint.user_id === user?.email || complaint.user_id?.includes('user_')
-      );
-      
-      setComplaints(userComplaints);
-      calculateStats(userComplaints);
-    } catch (error) {
-      console.error('Error fetching user complaints:', error);
-      // Fallback to mock data for demo
-      const mockComplaints = [
-        {
-          id: 1,
-          issue_type: 'pothole',
-          status: 'pending',
-          priority: 'high',
-          description: 'Large pothole on main road causing traffic issues',
-          created_at: '2024-01-15T10:30:00Z',
-          address: 'Main Street, Kanpur',
-          latitude: 26.3843,
-          longitude: 80.3768,
-          user_id: user?.email
-        },
-        {
-          id: 2,
-          issue_type: 'street_light',
-          status: 'in_progress',
-          priority: 'normal',
-          description: 'Street light not working in residential area',
-          created_at: '2024-01-14T15:45:00Z',
-          address: 'Residential Area, Kanpur',
-          latitude: 26.3850,
-          longitude: 80.3770,
-          user_id: user?.email
-        },
-        {
-          id: 3,
-          issue_type: 'garbage',
-          status: 'resolved',
-          priority: 'low',
-          description: 'Garbage collection issue resolved',
-          created_at: '2024-01-13T09:20:00Z',
-          address: 'Market Area, Kanpur',
-          latitude: 26.3840,
-          longitude: 80.3765,
-          user_id: user?.email
-        }
-      ];
-      setComplaints(mockComplaints);
-      calculateStats(mockComplaints);
-    } finally {
-      setIsLoading(false);
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return; // Still loading auth state
     }
-  };
+
+    // User not authenticated
+    if (!user?.uid) {
+      setIsLoading(false);
+      setComplaints([]);
+      return;
+    }
+
+    // User is authenticated, subscribe to complaints
+    setIsLoading(true);
+    
+    // Subscribe to real-time updates - onValue fires immediately with current data
+    const unsubscribe = subscribeToUserComplaints(user.uid, (updatedComplaints) => {
+      setComplaints(updatedComplaints);
+      calculateStats(updatedComplaints);
+      setIsLoading(false); // Set loading to false when data is received
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, authLoading]);
 
   const calculateStats = (complaints) => {
     const stats = {
@@ -129,9 +89,16 @@ const CitizenDashboard = () => {
   const getIssueIcon = (issueType) => {
     if (!issueType) return '⚠️';
     const icons = {
-      pothole: '🕳️',
-      street_light: '💡',
+      // ML Model Classes
+      damaged_signs: '🚧',
+      fallen_trees: '🌳',
       garbage: '🗑️',
+      graffiti: '🎨',
+      illegal_parking: '🚗',
+      potholes: '🕳️',
+      // Additional types
+      pothole: '🕳️', // Legacy support
+      street_light: '💡',
       water_leak: '💧',
       traffic_signal: '🚦',
       sidewalk_damage: '🚶',
@@ -153,8 +120,26 @@ const CitizenDashboard = () => {
         !(complaint.address || '').toLowerCase().includes(filters.search.toLowerCase())) {
       return false;
     }
+    // Ensure only current user's complaints are shown
+    if (complaint.userId && complaint.userId !== user?.uid) {
+      return false;
+    }
     return true;
   });
+
+  // Calculate map center from complaints with valid coordinates
+  const getMapCenter = () => {
+    const complaintsWithLocation = filteredComplaints.filter(c => c.latitude && c.longitude);
+    if (complaintsWithLocation.length === 0) {
+      // Default to Kanpur, India if no complaints
+      return [26.4499, 80.3319];
+    }
+    
+    // Calculate center point of all complaint locations
+    const avgLat = complaintsWithLocation.reduce((sum, c) => sum + c.latitude, 0) / complaintsWithLocation.length;
+    const avgLng = complaintsWithLocation.reduce((sum, c) => sum + c.longitude, 0) / complaintsWithLocation.length;
+    return [avgLat, avgLng];
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not available';
@@ -318,9 +303,9 @@ const CitizenDashboard = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-3">
-                        <span className="text-2xl">{getIssueIcon(complaint.issue_type)}</span>
+                        <span className="text-2xl">{getIssueIcon(complaint.issueType || complaint.issue_type)}</span>
                         <h3 className="text-lg font-semibold text-gray-900">
-                          {complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'Unknown'}
+                          {(complaint.issueType || complaint.issue_type || 'Unknown').replace(/_/g, ' ').toUpperCase()}
                         </h3>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(complaint.priority)}`}>
                           {complaint.priority ? complaint.priority.toUpperCase() : 'Unknown'}
@@ -336,7 +321,7 @@ const CitizenDashboard = () => {
                       
                       <div className="flex items-center space-x-4 text-sm text-gray-500">
                         <span>ID: #{complaint.id}</span>
-                        <span>Submitted: {formatDate(complaint.created_at)}</span>
+                        <span>Submitted: {formatDate(complaint.createdAt || complaint.created_at)}</span>
                         {complaint.latitude && complaint.longitude && (
                           <span className="flex items-center space-x-1">
                             <MapPin className="w-4 h-4" />
@@ -379,8 +364,8 @@ const CitizenDashboard = () => {
           /* Map View */
           <div className="h-96 rounded-lg overflow-hidden border border-gray-200">
             <MapContainer
-              center={[26.3843, 80.3768]}
-              zoom={13}
+              center={getMapCenter()}
+              zoom={filteredComplaints.length === 0 ? 10 : filteredComplaints.length === 1 ? 15 : 13}
               style={{ height: '100%', width: '100%' }}
             >
               <TileLayer
@@ -389,7 +374,11 @@ const CitizenDashboard = () => {
               />
               
               {filteredComplaints.map((complaint) => {
-                if (!complaint.latitude || !complaint.longitude) return null;
+                // Use camelCase or snake_case for latitude/longitude
+                const lat = complaint.latitude;
+                const lng = complaint.longitude;
+                
+                if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
                 
                 const statusConfig = getStatusIcon(complaint.status);
                 const StatusIcon = statusConfig.icon;
@@ -397,15 +386,15 @@ const CitizenDashboard = () => {
                 return (
                   <Marker
                     key={complaint.id}
-                    position={[complaint.latitude, complaint.longitude]}
+                    position={[lat, lng]}
                   >
                     <Popup>
                       <div className="p-2">
                         <div className="flex items-center space-x-2 mb-2">
-                          <span className="text-xl">{getIssueIcon(complaint.issue_type)}</span>
+                          <span className="text-xl">{getIssueIcon(complaint.issueType || complaint.issue_type)}</span>
                           <div>
                             <h3 className="font-semibold text-gray-900">
-                              {complaint.issue_type ? complaint.issue_type.replace('_', ' ').toUpperCase() : 'Unknown'}
+                              {(complaint.issueType || complaint.issue_type || 'Unknown').replace(/_/g, ' ').toUpperCase()}
                             </h3>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(complaint.priority)}`}>
                               {complaint.priority ? complaint.priority.toUpperCase() : 'Unknown'}
@@ -421,7 +410,7 @@ const CitizenDashboard = () => {
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
-                          ID: #{complaint.id} | {formatDate(complaint.created_at)}
+                          ID: #{complaint.id} | {formatDate(complaint.createdAt || complaint.created_at)}
                         </p>
                       </div>
                     </Popup>

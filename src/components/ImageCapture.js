@@ -15,25 +15,74 @@ const ImageCapture = ({ onImageCapture, onImageUpload }) => {
     facingMode: "environment"
   };
 
-  const capture = useCallback(() => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    setCapturedImage(imageSrc);
-    setIsCapturing(false);
-    onImageCapture(imageSrc);
-  }, [webcamRef, onImageCapture]);
+  const preprocessImage = useCallback((imageSrc) => {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!imageSrc) {
+          resolve(null);
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          const MAX_SIZE = 640;
+          let { width, height } = img;
+
+          if (width > height && width > MAX_SIZE) {
+            height = (height * MAX_SIZE) / width;
+            width = MAX_SIZE;
+          } else if (height >= width && height > MAX_SIZE) {
+            width = (width * MAX_SIZE) / height;
+            height = MAX_SIZE;
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d', { alpha: false });
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const processed = canvas.toDataURL('image/jpeg', 0.9);
+          resolve(processed);
+        };
+        img.onerror = reject;
+        img.src = imageSrc;
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }, []);
+
+  const capture = useCallback(async () => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (!imageSrc) return;
+    try {
+      const processedImage = await preprocessImage(imageSrc);
+      setCapturedImage(processedImage);
+      setIsCapturing(false);
+      onImageCapture(processedImage);
+    } catch (error) {
+      console.error('Failed to process captured image:', error);
+    }
+  }, [webcamRef, onImageCapture, preprocessImage]);
 
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const imageSrc = e.target.result;
-        setUploadedImage(imageSrc);
-        onImageUpload(imageSrc);
+        try {
+          const processedImage = await preprocessImage(imageSrc);
+          setUploadedImage(processedImage);
+          onImageUpload(processedImage);
+        } catch (error) {
+          console.error('Failed to process uploaded image:', error);
+        }
       };
       reader.readAsDataURL(file);
     }
-  }, [onImageUpload]);
+  }, [onImageUpload, preprocessImage]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -83,6 +132,8 @@ const ImageCapture = ({ onImageCapture, onImageUpload }) => {
             audio={false}
             ref={webcamRef}
             screenshotFormat="image/jpeg"
+            screenshotQuality={1}
+            mirrored={false}
             videoConstraints={videoConstraints}
             className="camera-preview"
           />

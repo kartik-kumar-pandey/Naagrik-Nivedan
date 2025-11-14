@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Building2, Users, AlertTriangle, CheckCircle, Clock, TrendingUp, Filter, Search, Eye, MapPin } from 'lucide-react';
-import axios from 'axios';
+import { subscribeToAllComplaints, updateComplaintStatus, updateComplaint } from '../services/complaintsService';
+import toast from 'react-hot-toast';
 import ComplaintDetails from '../components/ComplaintDetails';
 
 const DepartmentDashboard = () => {
@@ -20,80 +21,36 @@ const DepartmentDashboard = () => {
     resolved: 0,
     urgent: 0
   });
-  const [selectedComplaintId, setSelectedComplaintId] = useState(null);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
 
   const department = getDepartment();
 
   useEffect(() => {
-    fetchDepartmentComplaints();
-  }, [department]);
-
-  const fetchDepartmentComplaints = async () => {
-    try {
+    if (department) {
       setIsLoading(true);
-      // Try to fetch from backend
-      const response = await axios.get('http://localhost:5000/api/all-complaints');
-      const allComplaints = response.data.complaints || [];
       
-      // Filter complaints for this department
-      const departmentComplaints = allComplaints.filter(complaint => 
-        complaint.department === department
-      );
-      
-      
-      setComplaints(departmentComplaints);
-      calculateStats(departmentComplaints);
-    } catch (error) {
-      console.error('Error fetching department complaints:', error);
-      // Fallback to mock data for demo
-      const mockComplaints = [
-        {
-          id: 1,
-          issue_type: 'pothole',
-          status: 'pending',
-          priority: 'high',
-          description: 'Large pothole on main road causing traffic issues',
-          created_at: '2024-01-15T10:30:00Z',
-          address: 'Main Street, Kanpur',
-          department: department
-        },
-        {
-          id: 2,
-          issue_type: 'street_light',
-          status: 'in_progress',
-          priority: 'normal',
-          description: 'Street light not working in residential area',
-          created_at: '2024-01-14T15:45:00Z',
-          address: 'Residential Area, Kanpur',
-          department: department
-        },
-        {
-          id: 3,
-          issue_type: 'garbage',
-          status: 'resolved',
-          priority: 'low',
-          description: 'Garbage collection issue resolved',
-          created_at: '2024-01-13T09:20:00Z',
-          address: 'Market Area, Kanpur',
-          department: department
-        },
-        {
-          id: 4,
-          issue_type: 'water_leak',
-          status: 'pending',
-          priority: 'urgent',
-          description: 'Water leak in public area',
-          created_at: '2024-01-16T08:15:00Z',
-          address: 'Park Road, Kanpur',
-          department: department
-        }
-      ];
-      setComplaints(mockComplaints);
-      calculateStats(mockComplaints);
-    } finally {
+      // Subscribe to real-time updates - onValue fires immediately with current data
+      // Filter by department (case-insensitive matching for robustness)
+      const unsubscribe = subscribeToAllComplaints((allComplaints) => {
+        // Filter complaints for this department
+        // Use case-insensitive matching to handle any variations
+        const departmentComplaints = allComplaints.filter(complaint => {
+          const complaintDept = (complaint.department || '').toString().trim();
+          const userDept = (department || '').toString().trim();
+          return complaintDept.toLowerCase() === userDept.toLowerCase();
+        });
+        
+        setComplaints(departmentComplaints);
+        calculateStats(departmentComplaints);
+        setIsLoading(false); // Set loading to false when data is received
+      });
+
+      return () => unsubscribe();
+    } else {
       setIsLoading(false);
+      setComplaints([]);
     }
-  };
+  }, [department]);
 
   const calculateStats = (complaints) => {
     const stats = {
@@ -106,42 +63,23 @@ const DepartmentDashboard = () => {
     setStats(stats);
   };
 
-  const updateComplaintStatus = async (complaintId, newStatus) => {
+  const handleStatusUpdate = async (complaintId, newStatus, newPriority = null) => {
     try {
-      // In a real app, this would call the backend API
-      setComplaints(prev => prev.map(complaint => 
-        complaint.id === complaintId 
-          ? { ...complaint, status: newStatus }
-          : complaint
-      ));
+      // Update in Firebase (real-time sync for all officials)
+      await updateComplaintStatus(complaintId, newStatus, user?.uid);
       
-      // Recalculate stats
-      const updatedComplaints = complaints.map(complaint => 
-        complaint.id === complaintId 
-          ? { ...complaint, status: newStatus }
-          : complaint
-      );
-      calculateStats(updatedComplaints);
+      // If priority is provided, update it as well
+      if (newPriority) {
+        await updateComplaint(complaintId, { priority: newPriority });
+      }
       
+      toast.success('Complaint status updated successfully');
+      // Note: The real-time subscription will automatically update the UI
+      // No need to manually update state - Firebase handles it
     } catch (error) {
       console.error('Error updating complaint status:', error);
+      toast.error('Failed to update complaint status. Please try again.');
     }
-  };
-
-  const handleStatusUpdate = (complaintId, newStatus, newPriority) => {
-    setComplaints(prev => prev.map(complaint => 
-      complaint.id === complaintId 
-        ? { ...complaint, status: newStatus, priority: newPriority }
-        : complaint
-    ));
-    
-    // Recalculate stats
-    const updatedComplaints = complaints.map(complaint => 
-      complaint.id === complaintId 
-        ? { ...complaint, status: newStatus, priority: newPriority }
-        : complaint
-    );
-    calculateStats(updatedComplaints);
   };
 
   const getStatusIcon = (status) => {
@@ -336,7 +274,7 @@ const DepartmentDashboard = () => {
                   
                   <div className="flex flex-col space-y-2 ml-4">
                     <button
-                      onClick={() => setSelectedComplaintId(complaint.id)}
+                      onClick={() => setSelectedComplaint(complaint)}
                       className="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center space-x-2"
                     >
                       <Eye className="w-4 h-4" />
@@ -364,7 +302,7 @@ const DepartmentDashboard = () => {
                     
                     {complaint.status === 'pending' && (
                       <button
-                        onClick={() => updateComplaintStatus(complaint.id, 'in_progress')}
+                        onClick={() => handleStatusUpdate(complaint.id, 'in_progress')}
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                       >
                         Start Work
@@ -372,7 +310,7 @@ const DepartmentDashboard = () => {
                     )}
                     {complaint.status === 'in_progress' && (
                       <button
-                        onClick={() => updateComplaintStatus(complaint.id, 'resolved')}
+                        onClick={() => handleStatusUpdate(complaint.id, 'resolved')}
                         className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
                       >
                         Mark Resolved
@@ -407,10 +345,10 @@ const DepartmentDashboard = () => {
       </div>
       
       {/* Complaint Details Modal */}
-      {selectedComplaintId && (
+      {selectedComplaint && (
         <ComplaintDetails
-          complaintId={selectedComplaintId}
-          onClose={() => setSelectedComplaintId(null)}
+          complaint={selectedComplaint}
+          onClose={() => setSelectedComplaint(null)}
           onStatusUpdate={handleStatusUpdate}
         />
       )}
