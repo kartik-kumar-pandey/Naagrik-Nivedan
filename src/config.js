@@ -1,11 +1,10 @@
 // API Configuration for different environments
 const config = {
   development: {
-    API_BASE_URL: 'http://localhost:5000'
+    API_BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000'
   },
   production: {
-    // Replace with your actual Render backend URL
-    API_BASE_URL: 'https://your-backend-app.onrender.com'
+    API_BASE_URL: process.env.REACT_APP_API_BASE_URL || 'https://naagrik-nivedan.onrender.com'
   }
 };
 

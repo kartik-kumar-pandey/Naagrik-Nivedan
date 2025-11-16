@@ -24,13 +24,26 @@ app = Flask(__name__)
 CORS(app)
 
 # Database configuration
-#
-# Ensure we always point to a single persistent SQLite file regardless of CWD.
+# Supports both PostgreSQL (Render production) and SQLite (local development)
 backend_dir = os.path.dirname(os.path.abspath(__file__))
-instance_dir = os.path.join(backend_dir, 'instance')
-os.makedirs(instance_dir, exist_ok=True)
-db_path = os.path.join(instance_dir, 'civic_issues.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
+
+# Check for Render's DATABASE_URL (PostgreSQL)
+if os.getenv('DATABASE_URL'):
+    # Render PostgreSQL
+    database_url = os.getenv('DATABASE_URL')
+    # SQLAlchemy needs postgresql:// not postgres://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    print(f"[INFO] Using PostgreSQL database from DATABASE_URL")
+else:
+    # Local SQLite (development)
+    instance_dir = os.path.join(backend_dir, 'instance')
+    os.makedirs(instance_dir, exist_ok=True)
+    db_path = os.path.join(instance_dir, 'civic_issues.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
+    print(f"[INFO] Using SQLite database at {db_path}")
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
