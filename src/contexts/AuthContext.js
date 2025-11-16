@@ -24,6 +24,13 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Check if Firebase is initialized
+    if (!auth || !database) {
+      console.warn('[AuthContext] Firebase not initialized. Please set Firebase environment variables.');
+      setIsLoading(false);
+      return;
+    }
+
     // Listen for Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -74,6 +81,9 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signIn = async (email, password) => {
+    if (!auth) {
+      return { success: false, error: 'Firebase is not initialized. Please check environment variables.' };
+    }
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       return { success: true, user: userCredential.user };
@@ -83,6 +93,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signUp = async (email, password, userData = {}) => {
+    if (!auth || !database) {
+      return { success: false, error: 'Firebase is not initialized. Please check environment variables.' };
+    }
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
@@ -119,6 +132,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    if (!auth) {
+      setUser(null);
+      return;
+    }
     try {
       await firebaseSignOut(auth);
       setUser(null);
@@ -129,7 +146,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUserData = async (userData) => {
-    if (!user?.uid) return;
+    if (!user?.uid || !database) return;
 
     try {
       const userRef = ref(database, `users/${user.uid}`);
