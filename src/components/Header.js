@@ -50,8 +50,8 @@ const Header = () => {
   const getNavItems = () => {
     if (isCitizen()) {
       return [
-        { path: '/', label: 'My Complaints', icon: User },
-        { path: '/home', label: 'Home', icon: Home },
+        { path: '/dashboard', label: 'My Complaints', icon: User },
+        { path: '/', label: 'Home', icon: Home },
         { path: '/report', label: 'Report Issue', icon: Camera },
         { path: '/track', label: 'Track Complaint', icon: Search },
       ];

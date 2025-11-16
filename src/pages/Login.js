@@ -49,7 +49,7 @@ const Login = () => {
   useEffect(() => {
     if (isAuthenticated()) {
       if (isCitizen()) {
-        navigate('/');
+        navigate('/dashboard');
       } else if (isOfficial()) {
         navigate('/dashboard');
       }
@@ -102,7 +102,7 @@ const Login = () => {
           toast.success('Account created successfully!');
           setTimeout(() => {
             if (userType === 'citizen') {
-              navigate('/');
+              navigate('/dashboard');
             } else {
               navigate('/dashboard');
             }
@@ -118,11 +118,11 @@ const Login = () => {
           toast.success('Signed in successfully!');
           setTimeout(() => {
             if (isCitizen()) {
-              navigate('/');
+              navigate('/dashboard');
             } else if (isOfficial()) {
               navigate('/dashboard');
             } else {
-              navigate('/');
+              navigate('/dashboard');
             }
           }, 500);
         } else {
