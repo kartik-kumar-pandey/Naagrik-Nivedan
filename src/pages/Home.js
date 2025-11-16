@@ -1,39 +1,59 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Search, MapPin, AlertTriangle, Clock, Users } from 'lucide-react';
+import { Camera, Search, MapPin, AlertTriangle, Clock, Users, LogIn } from 'lucide-react';
 import { gsap } from 'gsap';
+import { useAuth } from '../contexts/AuthContext';
+import Preloader from '../components/Preloader';
 
 const Home = () => {
+  const { isAuthenticated } = useAuth();
+  const heroVideoRef = useRef(null);
   const heroRef = useRef(null);
   const statsRef = useRef(null);
   const featuresRef = useRef(null);
   const ctaRef = useRef(null);
 
   useEffect(() => {
-    if (heroRef.current) {
-      gsap.fromTo(heroRef.current.children,
-        { opacity: 0, y: 30 },
-        { opacity: 1, y: 0, duration: 0.8, stagger: 0.1, ease: "power3.out" }
-      );
-    }
-    if (statsRef.current) {
-      gsap.fromTo(statsRef.current.children,
-        { opacity: 0, scale: 0.8 },
-        { opacity: 1, scale: 1, duration: 0.6, delay: 0.3, stagger: 0.1, ease: "back.out(1.7)" }
-      );
-    }
-    if (featuresRef.current) {
-      gsap.fromTo(featuresRef.current.children,
-        { opacity: 0, x: -30 },
-        { opacity: 1, x: 0, duration: 0.6, delay: 0.5, stagger: 0.15, ease: "power2.out" }
-      );
-    }
-    if (ctaRef.current) {
-      gsap.fromTo(ctaRef.current,
-        { opacity: 0, scale: 0.9 },
-        { opacity: 1, scale: 1, duration: 0.8, delay: 0.8, ease: "power2.out" }
-      );
-    }
+    // Wait a bit for preloader to finish, then animate content
+    const timer = setTimeout(() => {
+      // Animate hero video and content
+      if (heroVideoRef.current) {
+        gsap.fromTo(heroVideoRef.current,
+          { opacity: 0 },
+          { opacity: 1, duration: 1, ease: "power2.out" }
+        );
+      }
+      if (heroRef.current) {
+        gsap.fromTo(heroRef.current.children,
+          { opacity: 0, y: 30 },
+          { opacity: 1, y: 0, duration: 0.8, delay: 0.2, stagger: 0.1, ease: "power3.out" }
+        );
+      }
+      
+      // Animate other sections
+      setTimeout(() => {
+        if (statsRef.current) {
+          gsap.fromTo(statsRef.current.children,
+            { opacity: 0, scale: 0.8 },
+            { opacity: 1, scale: 1, duration: 0.6, stagger: 0.1, ease: "back.out(1.7)" }
+          );
+        }
+        if (featuresRef.current) {
+          gsap.fromTo(featuresRef.current.children,
+            { opacity: 0, x: -30 },
+            { opacity: 1, x: 0, duration: 0.6, stagger: 0.15, ease: "power2.out" }
+          );
+        }
+        if (ctaRef.current) {
+          gsap.fromTo(ctaRef.current,
+            { opacity: 0, scale: 0.9 },
+            { opacity: 1, scale: 1, duration: 0.8, ease: "power2.out" }
+          );
+        }
+      }, 500);
+    }, 3500); // Wait for preloader animation to complete
+
+    return () => clearTimeout(timer);
   }, []);
   const features = [
     {
@@ -63,35 +83,79 @@ const Home = () => {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Hero Section */}
-      <div ref={heroRef} className="text-center py-16">
-        <h1 className="text-5xl md:text-7xl font-bold mb-6">
-          <span className="block text-gray-900 mb-2 drop-shadow-lg">Report Civic Issues</span>
-          <span className="block gradient-text">Make a Difference</span>
-        </h1>
-        <p className="text-xl md:text-2xl text-gray-700 mb-10 max-w-3xl mx-auto leading-relaxed drop-shadow-sm">
-          Help improve your community by reporting civic issues like potholes, street lights, 
-          garbage problems, and more. Our AI-powered system will classify your issue and 
-          route it to the appropriate department.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            to="/report"
-            className="bg-gradient-to-r from-blue-400 to-cyan-400 text-white px-10 py-4 rounded-xl font-bold hover:from-blue-500 hover:to-cyan-500 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg shadow-blue-400/50 hover:shadow-xl hover:shadow-blue-400/60 hover:scale-105"
-          >
-            <Camera className="w-5 h-5" />
-            <span>Report an Issue</span>
-          </Link>
-          <Link
-            to="/map"
-            className="glass text-gray-800 px-10 py-4 rounded-xl font-bold hover:bg-white/80 transition-all duration-300 flex items-center justify-center space-x-2 border-2 border-white/30 hover:scale-105"
-          >
-            <MapPin className="w-5 h-5" />
-            <span>View Map</span>
-          </Link>
+    <div>
+      {/* Preloader */}
+      <Preloader />
+
+      {/* Hero Video Background Section */}
+      <div className="relative w-full h-screen overflow-hidden">
+        {/* Video Background */}
+        <video
+          ref={heroVideoRef}
+          className="absolute top-0 left-0 w-full h-full object-cover"
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster="/video-poster.jpg"
+        >
+          <source src="/videos/city-timelapse.mp4" type="video/mp4" />
+          <source src="/videos/city-timelapse.webm" type="video/webm" />
+          Your browser does not support the video tag.
+        </video>
+
+        {/* Dark Overlay for text readability */}
+        <div className="absolute top-0 left-0 w-full h-full bg-black/50"></div>
+
+        {/* Content */}
+        <div ref={heroRef} className="relative z-10 flex flex-col items-center justify-center h-full text-center text-white px-4">
+          <h1 className="text-5xl md:text-7xl font-bold mb-4 drop-shadow-lg">
+            Nagarik Nivedan
+          </h1>
+          <p className="text-xl md:text-2xl max-w-2xl mb-8 drop-shadow-md">
+            Empowering citizens to build better cities. Report issues in seconds.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            {!isAuthenticated() ? (
+              <>
+                <Link
+                  to="/login"
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-8 py-4 rounded-xl font-bold hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/50 hover:shadow-xl hover:scale-105"
+                >
+                  <LogIn className="w-5 h-5" />
+                  <span>Get Started</span>
+                </Link>
+                <Link
+                  to="/login"
+                  className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-bold hover:bg-white/30 transition-all duration-300 flex items-center justify-center space-x-2 border-2 border-white/50 hover:scale-105 shadow-lg"
+                >
+                  <span>Sign In</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-8 py-4 rounded-xl font-bold hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/50 hover:shadow-xl hover:scale-105"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span>Report an Issue</span>
+                </Link>
+                <Link
+                  to="/map"
+                  className="bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-xl font-bold hover:bg-white/30 transition-all duration-300 flex items-center justify-center space-x-2 border-2 border-white/50 hover:scale-105 shadow-lg"
+                >
+                  <MapPin className="w-5 h-5" />
+                  <span>View Map</span>
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
 
       {/* Stats Section */}
       <div ref={statsRef} className="glass rounded-2xl shadow-modern p-8 mb-12">
@@ -146,6 +210,7 @@ const Home = () => {
           <Camera className="w-5 h-5" />
           <span>Start Reporting</span>
         </Link>
+      </div>
       </div>
     </div>
   );

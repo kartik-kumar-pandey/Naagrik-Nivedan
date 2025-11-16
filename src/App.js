@@ -39,22 +39,15 @@ function AppContent() {
       </div>
       
       {isAuthenticated() && <Header />}
-      <main ref={mainRef} className="container mx-auto px-4 py-8 relative z-10">
+      <main ref={mainRef} className="relative z-10">
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Home />} />
           <Route 
-            path="/" 
+            path="/dashboard" 
             element={
               <ProtectedRoute requiredRole="citizen">
                 <CitizenDashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/home" 
-            element={
-              <ProtectedRoute requiredRole="citizen">
-                <Home />
               </ProtectedRoute>
             } 
           />
@@ -98,7 +91,7 @@ function AppContent() {
               </ProtectedRoute>
             } 
           />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <Toaster 

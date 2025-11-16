@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Building2, Users, AlertTriangle, CheckCircle, Clock, TrendingUp, Filter, Search, Eye, MapPin } from 'lucide-react';
+import { Building2, Users, AlertTriangle, CheckCircle, Clock, TrendingUp, Filter, Search, Eye, MapPin, ListFilter } from 'lucide-react';
 import { subscribeToAllComplaints, updateComplaintStatus, updateComplaint } from '../services/complaintsService';
 import toast from 'react-hot-toast';
 import ComplaintDetails from '../components/ComplaintDetails';
@@ -14,6 +14,7 @@ const DepartmentDashboard = () => {
     priority: 'all',
     search: ''
   });
+  const [sortView, setSortView] = useState('all'); // 'all', 'resolved', 'non-resolved'
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -114,6 +115,22 @@ const DepartmentDashboard = () => {
     return true;
   });
 
+  // Separate resolved and non-resolved complaints
+  const resolvedComplaints = filteredComplaints.filter(complaint => complaint.status === 'resolved');
+  const nonResolvedComplaints = filteredComplaints.filter(complaint => complaint.status !== 'resolved');
+
+  // Get complaints to display based on sort view
+  const getDisplayedComplaints = () => {
+    if (sortView === 'resolved') {
+      return resolvedComplaints;
+    } else if (sortView === 'non-resolved') {
+      return nonResolvedComplaints;
+    }
+    return filteredComplaints;
+  };
+
+  const displayedComplaints = getDisplayedComplaints();
+
   const formatDate = (dateString) => {
     if (!dateString) return 'Not available';
     try {
@@ -145,7 +162,7 @@ const DepartmentDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-8">
+      <div className="glass rounded-2xl shadow-modern p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -240,9 +257,75 @@ const DepartmentDashboard = () => {
           </div>
         </div>
 
+        {/* Sort/View Toggle */}
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 mb-6 border-2 border-blue-200">
+          <div className="flex items-center space-x-2 mb-3">
+            <ListFilter className="w-5 h-5 text-blue-600" />
+            <label className="block text-sm font-semibold text-gray-700">
+              View Complaints
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => setSortView('all')}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center space-x-2 ${
+                sortView === 'all'
+                  ? 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-lg shadow-blue-400/50 scale-105'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+              }`}
+            >
+              <span>All Complaints</span>
+              <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold">
+                {filteredComplaints.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setSortView('non-resolved')}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center space-x-2 ${
+                sortView === 'non-resolved'
+                  ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg shadow-yellow-400/50 scale-105'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>Non-Resolved</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                sortView === 'non-resolved' ? 'bg-white/20' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {nonResolvedComplaints.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setSortView('resolved')}
+              className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center space-x-2 ${
+                sortView === 'resolved'
+                  ? 'bg-gradient-to-r from-green-400 to-emerald-400 text-white shadow-lg shadow-green-400/50 scale-105'
+                  : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>Resolved</span>
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                sortView === 'resolved' ? 'bg-white/20' : 'bg-green-100 text-green-700'
+              }`}>
+                {resolvedComplaints.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Complaints List */}
         <div className="space-y-4">
-          {filteredComplaints.map((complaint) => {
+          {displayedComplaints.length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-gray-700">
+                {sortView === 'resolved' && `Resolved Complaints (${resolvedComplaints.length})`}
+                {sortView === 'non-resolved' && `Non-Resolved Complaints (${nonResolvedComplaints.length})`}
+                {sortView === 'all' && `All Complaints (${filteredComplaints.length})`}
+              </h3>
+            </div>
+          )}
+          {displayedComplaints.map((complaint) => {
             const statusConfig = getStatusIcon(complaint.status);
             const StatusIcon = statusConfig.icon;
             
@@ -327,16 +410,27 @@ const DepartmentDashboard = () => {
             );
           })}
           
-          {filteredComplaints.length === 0 && (
+          {displayedComplaints.length === 0 && (
             <div className="text-center py-12">
               <AlertTriangle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {complaints.length === 0 ? 'No complaints yet' : 'No complaints found'}
+                {complaints.length === 0 
+                  ? 'No complaints yet' 
+                  : sortView === 'resolved'
+                    ? 'No resolved complaints found'
+                    : sortView === 'non-resolved'
+                      ? 'No non-resolved complaints found'
+                      : 'No complaints found'
+                }
               </h3>
               <p className="text-gray-600">
                 {complaints.length === 0 
                   ? `No complaints have been assigned to ${department} yet.`
-                  : 'No complaints match your current filters.'
+                  : sortView === 'resolved'
+                    ? 'There are no resolved complaints matching your filters.'
+                    : sortView === 'non-resolved'
+                      ? 'There are no non-resolved complaints matching your filters.'
+                      : 'No complaints match your current filters.'
                 }
               </p>
             </div>

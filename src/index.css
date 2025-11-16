@@ -204,6 +204,21 @@ body {
   overflow-x: hidden;
 }
 
+/* Preloader Styles */
+body.preloader-active {
+  overflow: hidden;
+  height: 100vh;
+}
+
+.preloader-item {
+  will-change: transform;
+}
+
+.name-text span {
+  will-change: transform;
+  display: inline-block;
+}
+
 /* Modal fixes */
 .modal-overlay {
   position: fixed;
