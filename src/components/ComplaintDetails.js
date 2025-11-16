@@ -134,8 +134,19 @@ const ComplaintDetails = ({ complaint, onClose, onStatusUpdate }) => {
 
   if (!localComplaint) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+      <div 
+        className="fixed top-0 left-0 right-0 bottom-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      >
+        <div 
+          className="bg-white rounded-2xl p-8 max-w-md w-full shadow-modern"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="text-center">
             <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Complaint Not Found</h3>
@@ -218,8 +229,15 @@ Complaint ID: ${trackingId}`
   }, [localComplaint]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="bg-white rounded-lg max-w-4xl w-full h-full overflow-y-auto mx-auto" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center space-x-3">
@@ -235,9 +253,9 @@ Complaint ID: ${trackingId}`
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors bg-gray-50 hover:bg-gray-200"
           >
-            <X className="w-6 h-6 text-gray-500" />
+            <X className="w-6 h-6 text-gray-600" />
           </button>
         </div>
 
@@ -254,7 +272,7 @@ Complaint ID: ${trackingId}`
                 <p className="text-lg font-mono">{trackingId}</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm overflow-x-auto">
               <div>
                 <span className="text-blue-200">To:</span>
                 <p className="font-semibold">{departmentName} Department</p>
@@ -330,7 +348,7 @@ Complaint ID: ${trackingId}`
               <span>Precise Geolocation</span>
             </h3>
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-x-auto">
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Address:</h4>
                   <p className="text-gray-700">{citizenAddress}</p>
@@ -424,7 +442,7 @@ Complaint ID: ${trackingId}`
               <span>Tracking Information</span>
             </h3>
             <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border border-green-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-x-auto">
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Unique Tracking ID:</h4>
                   <p className="text-lg font-mono text-blue-600 bg-white px-3 py-2 rounded border">
@@ -449,7 +467,7 @@ Complaint ID: ${trackingId}`
                 <span>Formal Complaint Letter</span>
               </h3>
               <div className="bg-white border-2 border-gray-200 rounded-lg p-6 shadow-sm">
-                <div className="font-mono text-sm text-gray-800 leading-relaxed whitespace-pre-wrap bg-gray-50 p-4 rounded border-l-4 border-blue-500">
+                  <div className="font-mono text-sm text-gray-800 leading-relaxed whitespace-pre-wrap bg-gray-50 p-4 rounded border-l-4 border-blue-500 overflow-x-auto break-words">
                   {formalComplaintText}
                 </div>
               </div>
@@ -496,7 +514,7 @@ Complaint ID: ${trackingId}`
           {/* Status Update Form */}
           <div className="border-t border-gray-200 pt-6">
             <h3 className="font-semibold text-gray-900 mb-4">Update Status</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-x-auto">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   New Status

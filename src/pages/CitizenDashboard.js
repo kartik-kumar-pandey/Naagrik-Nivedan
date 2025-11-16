@@ -172,7 +172,7 @@ const CitizenDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-8">
+      <div className="glass rounded-2xl shadow-modern p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -190,21 +190,21 @@ const CitizenDashboard = () => {
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-            <div className="text-sm text-gray-600">Total Complaints</div>
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-blue-600 mb-2">{stats.total}</div>
+            <div className="text-sm font-semibold text-gray-700">Total Complaints</div>
           </div>
-          <div className="bg-yellow-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-            <div className="text-sm text-gray-600">Pending</div>
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-yellow-600 mb-2">{stats.pending}</div>
+            <div className="text-sm font-semibold text-gray-700">Pending</div>
           </div>
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
-            <div className="text-sm text-gray-600">In Progress</div>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-blue-600 mb-2">{stats.inProgress}</div>
+            <div className="text-sm font-semibold text-gray-700">In Progress</div>
           </div>
-          <div className="bg-green-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.resolved}</div>
-            <div className="text-sm text-gray-600">Resolved</div>
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-green-600 mb-2">{stats.resolved}</div>
+            <div className="text-sm font-semibold text-gray-700">Resolved</div>
           </div>
         </div>
 
@@ -299,7 +299,7 @@ const CitizenDashboard = () => {
               const StatusIcon = statusConfig.icon;
               
               return (
-                <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                <div key={complaint.id} className="modern-card p-6 border-2 border-gray-100">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-3">
@@ -334,7 +334,7 @@ const CitizenDashboard = () => {
                     <div className="flex flex-col space-y-2 ml-4">
                       <button
                         onClick={() => setViewMode('map')}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                        className="bg-gradient-to-r from-blue-400 to-cyan-400 text-white px-5 py-2 rounded-xl text-sm font-bold hover:from-blue-500 hover:to-cyan-500 transition-all duration-300 flex items-center space-x-2 shadow-lg shadow-blue-400/50 hover:scale-105"
                       >
                         <Eye className="w-4 h-4" />
                         <span>View on Map</span>

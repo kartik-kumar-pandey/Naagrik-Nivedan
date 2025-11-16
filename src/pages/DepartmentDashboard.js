@@ -132,7 +132,7 @@ const DepartmentDashboard = () => {
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm p-8">
+        <div className="glass rounded-2xl shadow-modern p-8">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading {department} complaints...</p>
@@ -164,25 +164,25 @@ const DepartmentDashboard = () => {
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-            <div className="text-sm text-gray-600">Total Issues</div>
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-blue-600 mb-2">{stats.total}</div>
+            <div className="text-sm font-semibold text-gray-700">Total Issues</div>
           </div>
-          <div className="bg-yellow-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-            <div className="text-sm text-gray-600">Pending</div>
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-yellow-600 mb-2">{stats.pending}</div>
+            <div className="text-sm font-semibold text-gray-700">Pending</div>
           </div>
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
-            <div className="text-sm text-gray-600">In Progress</div>
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-blue-600 mb-2">{stats.inProgress}</div>
+            <div className="text-sm font-semibold text-gray-700">In Progress</div>
           </div>
-          <div className="bg-green-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{stats.resolved}</div>
-            <div className="text-sm text-gray-600">Resolved</div>
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-green-600 mb-2">{stats.resolved}</div>
+            <div className="text-sm font-semibold text-gray-700">Resolved</div>
           </div>
-          <div className="bg-red-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">{stats.urgent}</div>
-            <div className="text-sm text-gray-600">Urgent</div>
+          <div className="bg-gradient-to-br from-red-50 to-rose-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-red-600 mb-2">{stats.urgent}</div>
+            <div className="text-sm font-semibold text-gray-700">Urgent</div>
           </div>
         </div>
 
@@ -247,7 +247,7 @@ const DepartmentDashboard = () => {
             const StatusIcon = statusConfig.icon;
             
             return (
-              <div key={complaint.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+              <div key={complaint.id} className="modern-card p-6 border-2 border-gray-100">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-3">
@@ -275,7 +275,7 @@ const DepartmentDashboard = () => {
                   <div className="flex flex-col space-y-2 ml-4">
                     <button
                       onClick={() => setSelectedComplaint(complaint)}
-                      className="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center space-x-2"
+                      className="bg-gradient-to-r from-blue-400 to-cyan-400 text-white px-5 py-2 rounded-xl text-sm font-bold hover:from-blue-500 hover:to-cyan-500 transition-all duration-300 flex items-center space-x-2 shadow-lg shadow-blue-400/50 hover:scale-105"
                     >
                       <Eye className="w-4 h-4" />
                       <span>View Details</span>

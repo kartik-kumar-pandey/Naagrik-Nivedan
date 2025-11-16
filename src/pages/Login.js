@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, User, Shield, Building2, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { gsap } from 'gsap';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -18,6 +19,31 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { signIn, signUp, isAuthenticated, isCitizen, isOfficial } = useAuth();
+  const containerRef = useRef(null);
+  const formRef = useRef(null);
+  const logoRef = useRef(null);
+
+  // GSAP Animations
+  useEffect(() => {
+    if (containerRef.current) {
+      gsap.fromTo(containerRef.current,
+        { opacity: 0, scale: 0.9 },
+        { opacity: 1, scale: 1, duration: 0.8, ease: "power3.out" }
+      );
+    }
+    if (logoRef.current) {
+      gsap.fromTo(logoRef.current,
+        { scale: 0, rotation: -180 },
+        { scale: 1, rotation: 0, duration: 0.6, delay: 0.2, ease: "back.out(1.7)" }
+      );
+    }
+    if (formRef.current) {
+      gsap.fromTo(formRef.current.children,
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, delay: 0.4, stagger: 0.1, ease: "power2.out" }
+      );
+    }
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -137,22 +163,25 @@ const Login = () => {
   }, [isSignUp]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative">
+      <div ref={containerRef} className="max-w-md w-full space-y-6">
         <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Shield className="h-6 w-6 text-white" />
+          <div 
+            ref={logoRef}
+            className="mx-auto h-16 w-16 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-400/50 mb-4"
+          >
+            <Shield className="h-8 w-8 text-white" />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+          <h2 className="text-4xl font-bold gradient-text mb-2">
             Welcome to Civic Reporter
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="text-gray-600">
             {isSignUp ? 'Create an account' : 'Sign in to report issues or manage complaints'}
           </p>
         </div>
 
         {/* Toggle between Sign In and Sign Up */}
-        <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
+        <div className="glass rounded-2xl p-2 shadow-modern">
           <div className="flex gap-2">
             <button
               type="button"
@@ -160,14 +189,14 @@ const Login = () => {
                 setIsSignUp(false);
                 setFormData(prev => ({ ...prev, confirmPassword: '', displayName: '' }));
               }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+              className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center space-x-2 ${
                 !isSignUp
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-lg shadow-blue-400/50'
+                  : 'bg-white/70 text-gray-800 hover:bg-white/90'
               }`}
             >
-              <LogIn className="w-4 h-4 inline mr-2" />
-              Sign In
+              <LogIn className="w-4 h-4" />
+              <span>Sign In</span>
             </button>
             <button
               type="button"
@@ -175,20 +204,20 @@ const Login = () => {
                 setIsSignUp(true);
                 setFormData(prev => ({ ...prev, confirmPassword: '', displayName: '' }));
               }}
-              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+              className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center space-x-2 ${
                 isSignUp
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-lg shadow-blue-400/50'
+                  : 'bg-white/70 text-gray-800 hover:bg-white/90'
               }`}
             >
-              <UserPlus className="w-4 h-4 inline mr-2" />
-              Sign Up
+              <UserPlus className="w-4 h-4" />
+              <span>Sign Up</span>
             </button>
           </div>
         </div>
 
         {/* User Type Selection */}
-        <div className="bg-white rounded-lg p-6 shadow-sm">
+        <div ref={formRef} className="glass rounded-2xl p-6 shadow-modern">
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-3">
               I am a:
@@ -197,28 +226,28 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => setUserType('citizen')}
-                className={`p-4 rounded-lg border-2 transition-colors ${
+                className={`p-5 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
                   userType === 'citizen'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-cyan-50 text-blue-800 shadow-lg shadow-blue-400/20'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-white/70'
                 }`}
               >
-                <User className="w-6 h-6 mx-auto mb-2" />
-                <span className="font-medium">Citizen</span>
+                <User className="w-8 h-8 mx-auto mb-2 text-blue-600" />
+                <span className="font-semibold block">Citizen</span>
                 <p className="text-xs text-gray-500 mt-1">Report issues</p>
               </button>
               
               <button
                 type="button"
                 onClick={() => setUserType('official')}
-                className={`p-4 rounded-lg border-2 transition-colors ${
+                className={`p-5 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
                   userType === 'official'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-indigo-400 bg-gradient-to-br from-indigo-50 to-blue-50 text-indigo-800 shadow-lg shadow-indigo-400/20'
+                    : 'border-gray-200 hover:border-indigo-300 hover:bg-white/70'
                 }`}
               >
-                <Building2 className="w-6 h-6 mx-auto mb-2" />
-                <span className="font-medium">Official</span>
+                <Building2 className="w-8 h-8 mx-auto mb-2 text-indigo-600" />
+                <span className="font-semibold block">Official</span>
                 <p className="text-xs text-gray-500 mt-1">Manage complaints</p>
               </button>
             </div>
@@ -237,7 +266,7 @@ const Login = () => {
                   type="text"
                   value={formData.displayName}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
                   placeholder="Enter your name"
                 />
               </div>
@@ -248,16 +277,16 @@ const Login = () => {
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email Address
               </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={formData.email}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your email"
-              />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
+                  placeholder="Enter your email"
+                />
             </div>
 
             {/* Password Field */}
@@ -273,7 +302,7 @@ const Login = () => {
                   required
                   value={formData.password}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
                   placeholder="Enter your password"
                   minLength={isSignUp ? 6 : undefined}
                 />
@@ -308,7 +337,7 @@ const Login = () => {
                     required
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
                     placeholder="Confirm your password"
                   />
                 </div>
@@ -327,7 +356,7 @@ const Login = () => {
                   required
                   value={formData.department}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
                 >
                   <option value="">Select your department</option>
                   {departments.map((dept) => (
@@ -343,16 +372,16 @@ const Login = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="w-full bg-gradient-to-r from-blue-400 to-cyan-400 text-white py-4 px-6 rounded-xl font-bold hover:from-blue-500 hover:to-cyan-500 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-lg shadow-blue-400/50 hover:shadow-xl hover:shadow-blue-400/60 hover:scale-105 disabled:hover:scale-100"
             >
               {isLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   <span>{isSignUp ? 'Creating account...' : 'Signing in...'}</span>
                 </>
               ) : (
                 <>
-                  {isSignUp ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+                  {isSignUp ? <UserPlus className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
                   <span>{isSignUp ? 'Sign Up' : 'Sign In'}</span>
                 </>
               )}
@@ -361,14 +390,14 @@ const Login = () => {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-gray-600 glass rounded-xl p-4">
           {!isSignUp ? (
             <p>
               Don't have an account?{' '}
               <button
                 type="button"
                 onClick={() => setIsSignUp(true)}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-300"
               >
                 Sign up here
               </button>
@@ -379,7 +408,7 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => setIsSignUp(false)}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-600 hover:text-blue-700 font-semibold transition-colors duration-300"
               >
                 Sign in here
               </button>

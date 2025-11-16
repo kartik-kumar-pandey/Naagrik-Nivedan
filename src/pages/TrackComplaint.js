@@ -107,7 +107,7 @@ const TrackComplaint = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-8">
+      <div className="glass rounded-2xl shadow-modern p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Track Your Complaint</h1>
         
         {/* Search Form */}
@@ -152,7 +152,7 @@ const TrackComplaint = () => {
         {complaint && (
           <div className="space-y-6">
             {/* Status Card */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="modern-card p-6 border-2 border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900">Complaint Status</h2>
                 <div className="flex items-center space-x-2">
@@ -192,7 +192,7 @@ const TrackComplaint = () => {
             </div>
 
             {/* Timeline */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="modern-card p-6 border-2 border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h3>
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
@@ -234,17 +234,17 @@ const TrackComplaint = () => {
             </div>
 
             {/* Contact Information */}
-            <div className="bg-blue-50 rounded-lg p-6">
+            <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Need Help?</h3>
-              <p className="text-gray-700 mb-4">
+              <p className="text-gray-800 mb-4">
                 If you have any questions about your complaint or need to provide additional information, 
                 please contact the {complaint.department} department.
               </p>
               <div className="flex space-x-4">
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                <button className="bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors font-semibold">
                   Contact Department
                 </button>
-                <button className="bg-white text-blue-600 px-4 py-2 rounded-lg border border-blue-600 hover:bg-blue-50 transition-colors">
+                <button className="bg-white text-blue-700 px-4 py-2 rounded-lg border-2 border-blue-400 hover:bg-blue-50 transition-colors font-semibold">
                   Add Comment
                 </button>
               </div>

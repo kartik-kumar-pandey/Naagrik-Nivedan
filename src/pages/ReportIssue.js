@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { gsap } from 'gsap';
 import ImageCapture from '../components/ImageCapture';
 import LocationDetails from '../components/LocationDetails';
 import MapPicker from '../components/MapPicker';
@@ -31,6 +32,16 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
   const [geoWatchId, setGeoWatchId] = useState(null);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      gsap.fromTo(containerRef.current,
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }
+      );
+    }
+  }, [step]);
 
   // Get user location
   useEffect(() => {
@@ -482,24 +493,24 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Report a Civic Issue</h1>
+      <div ref={containerRef} className="glass rounded-2xl shadow-modern p-8">
+        <h1 className="text-4xl font-bold gradient-text mb-8">Report a Civic Issue</h1>
         
         {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-8">
+        <div className="flex items-center justify-center mb-10">
           <div className="flex items-center space-x-4">
             {[1, 2, 3].map((stepNumber) => (
               <div key={stepNumber} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-300 ${
                   step >= stepNumber 
-                    ? 'bg-blue-600 text-white' 
+                    ? 'bg-gradient-to-r from-blue-400 to-cyan-400 text-white shadow-lg shadow-blue-400/50 scale-110' 
                     : 'bg-gray-200 text-gray-600'
                 }`}>
                   {stepNumber}
                 </div>
                 {stepNumber < 3 && (
-                  <div className={`w-16 h-1 mx-2 ${
-                    step > stepNumber ? 'bg-blue-600' : 'bg-gray-200'
+                  <div className={`w-20 h-2 mx-3 rounded-full transition-all duration-300 ${
+                    step > stepNumber ? 'bg-gradient-to-r from-blue-400 to-cyan-400' : 'bg-gray-200'
                   }`} />
                 )}
               </div>
@@ -509,8 +520,8 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
 
         {/* Step 1: Image Capture */}
         {step === 1 && (
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Take or Upload a Photo</h2>
+          <div className="animate-fade-in-up">
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">Take or Upload a Photo</h2>
             <p className="text-gray-600 mb-6">
               Capture a clear photo of the issue or upload an existing image. 
               Our AI will automatically classify the type of issue.
@@ -576,20 +587,20 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
 
         {/* Step 2: Classification Results */}
         {step === 2 && (
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Issue Classification</h2>
+          <div className="animate-fade-in-up">
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">Issue Classification</h2>
             
             {isLoading ? (
-              <div className="text-center py-8">
-                <Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-                <p className="text-gray-600">Analyzing your image...</p>
+              <div className="text-center py-12">
+                <Loader className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
+                <p className="text-gray-600 text-lg">Analyzing your image...</p>
               </div>
             ) : classificationResult ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                <h3 className="text-lg font-semibold text-green-800 mb-2">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-2xl p-6 mb-6 shadow-lg">
+                <h3 className="text-xl font-bold text-green-800 mb-2">
                   Issue Detected: {classificationResult.issue_type.replace('_', ' ').toUpperCase()}
                 </h3>
-                <p className="text-green-700">
+                <p className="text-green-700 font-semibold">
                   Confidence: {Math.round(classificationResult.confidence * 100)}%
                 </p>
               </div>
@@ -603,7 +614,7 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
                 <select
                   value={formData.issueType}
                   onChange={(e) => setFormData(prev => ({ ...prev, issueType: e.target.value }))}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
                 >
                   <option value="">Select issue type</option>
                   {issueTypes.map((type) => (
@@ -623,21 +634,21 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Provide any additional details about the issue..."
                   rows={4}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white/50 backdrop-blur-sm"
                 />
               </div>
 
               <div className="flex justify-between">
                 <button
                   onClick={() => setStep(1)}
-                  className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors"
+                  className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-all duration-300 rounded-xl hover:bg-gray-100"
                 >
                   ← Back
                 </button>
                 <button
                   onClick={() => setStep(3)}
                   disabled={!formData.issueType}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gradient-to-r from-blue-400 to-cyan-400 text-white px-8 py-3 rounded-xl font-bold hover:from-blue-500 hover:to-cyan-500 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-400/50 hover:shadow-xl hover:scale-105 disabled:hover:scale-100"
                 >
                   Continue →
                 </button>
@@ -648,8 +659,8 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
 
         {/* Step 3: Location and Submit */}
         {step === 3 && (
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Location & Submit</h2>
+          <div className="animate-fade-in-up">
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">Location & Submit</h2>
             
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Detailed Location Display */}
@@ -700,7 +711,7 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
               </div>
 
               {/* Manual Location Input Option */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300 rounded-2xl p-6 shadow-lg">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-2">
                     <MapPin className="w-5 h-5 text-yellow-600" />
@@ -741,12 +752,12 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
               </div>
 
               {/* Issue Summary */}
-              <div className="bg-blue-50 rounded-lg p-4">
+              <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg">
                 <div className="flex items-center space-x-2 mb-2">
-                  <FileText className="w-5 h-5 text-blue-600" />
+                  <FileText className="w-5 h-5 text-blue-700" />
                   <span className="font-semibold text-gray-900">Issue Summary</span>
                 </div>
-                <p className="text-gray-700">
+                <p className="text-gray-800">
                   <strong>Type:</strong> {formData.issueType.replace('_', ' ').toUpperCase()}
                 </p>
                 {formData.description && (
@@ -760,14 +771,14 @@ const ReportIssue = ({ userLocation, setUserLocation }) => {
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors"
+                  className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-all duration-300 rounded-xl hover:bg-gray-100"
                 >
                   ← Back
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="bg-green-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-10 py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg shadow-green-500/50 hover:shadow-xl hover:scale-105 disabled:hover:scale-100"
                 >
                   {isLoading ? (
                     <Loader className="w-5 h-5 animate-spin" />

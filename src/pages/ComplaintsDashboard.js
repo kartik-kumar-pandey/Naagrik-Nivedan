@@ -258,7 +258,7 @@ const ComplaintsDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm p-8">
+      <div className="glass rounded-2xl shadow-modern p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Complaints Dashboard</h1>
@@ -301,27 +301,27 @@ const ComplaintsDashboard = () => {
 
         {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{complaints.length}</div>
-            <div className="text-sm text-gray-600">Total Issues</div>
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-blue-600 mb-2">{complaints.length}</div>
+            <div className="text-sm font-semibold text-gray-700">Total Issues</div>
           </div>
-          <div className="bg-green-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-green-600 mb-2">
               {complaints.filter(c => c.status === 'resolved').length}
             </div>
-            <div className="text-sm text-gray-600">Resolved</div>
+            <div className="text-sm font-semibold text-gray-700">Resolved</div>
           </div>
-          <div className="bg-yellow-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-yellow-600">
+          <div className="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-yellow-600 mb-2">
               {complaints.filter(c => c.status === 'pending').length}
             </div>
-            <div className="text-sm text-gray-600">Pending</div>
+            <div className="text-sm font-semibold text-gray-700">Pending</div>
           </div>
-          <div className="bg-red-50 rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">
+          <div className="bg-gradient-to-br from-red-50 to-rose-100 rounded-2xl p-6 text-center shadow-lg hover:scale-105 transition-transform duration-300">
+            <div className="text-4xl font-bold text-red-600 mb-2">
               {complaints.filter(c => c.priority === 'urgent').length}
             </div>
-            <div className="text-sm text-gray-600">Urgent</div>
+            <div className="text-sm font-semibold text-gray-700">Urgent</div>
           </div>
         </div>
 
@@ -408,7 +408,7 @@ const ComplaintsDashboard = () => {
               return (
                 <div
                   key={complaint.id}
-                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"
+                  className="modern-card p-6 border-2 border-gray-100 cursor-pointer"
                   onClick={() => setSelectedComplaint(complaint)}
                 >
                   <div className="flex items-start justify-between">

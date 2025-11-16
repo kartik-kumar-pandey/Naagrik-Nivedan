@@ -114,11 +114,11 @@ const ImageCapture = ({ onImageCapture, onImageUpload }) => {
           <img
             src={capturedImage || uploadedImage}
             alt="Captured/Uploaded"
-            className="w-full max-w-md mx-auto rounded-lg shadow-lg"
+            className="w-full max-w-md mx-auto rounded-2xl shadow-modern"
           />
           <button
             onClick={resetImages}
-            className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+            className="absolute top-4 right-4 bg-gradient-to-r from-red-500 to-rose-600 text-white p-3 rounded-full hover:from-red-600 hover:to-rose-700 transition-all duration-300 shadow-lg hover:scale-110"
           >
             <X className="w-4 h-4" />
           </button>
@@ -140,14 +140,14 @@ const ImageCapture = ({ onImageCapture, onImageUpload }) => {
           <div className="flex justify-center space-x-4 mt-4">
             <button
               onClick={capture}
-              className="bg-green-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center space-x-2"
+              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl font-bold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 flex items-center space-x-2 shadow-lg shadow-green-500/50 hover:scale-105"
             >
               <Camera className="w-5 h-5" />
               <span>Capture</span>
             </button>
             <button
               onClick={stopCapture}
-              className="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+              className="bg-gray-500 text-white px-8 py-4 rounded-xl font-bold hover:bg-gray-600 transition-all duration-300 shadow-lg hover:scale-105"
             >
               Cancel
             </button>
@@ -161,10 +161,10 @@ const ImageCapture = ({ onImageCapture, onImageUpload }) => {
           {/* Camera Button */}
           <button
             onClick={startCapture}
-            className="bg-blue-600 text-white p-6 rounded-lg hover:bg-blue-700 transition-colors flex flex-col items-center space-y-2"
+            className="bg-gradient-to-r from-blue-400 to-cyan-400 text-white p-8 rounded-2xl hover:from-blue-500 hover:to-cyan-500 transition-all duration-300 flex flex-col items-center space-y-3 shadow-lg shadow-blue-400/50 hover:scale-105"
           >
-            <Camera className="w-8 h-8" />
-            <span className="font-semibold">Take Photo</span>
+            <Camera className="w-10 h-10" />
+            <span className="font-bold text-lg">Take Photo</span>
           </button>
 
           {/* Upload Area */}
@@ -189,9 +189,9 @@ const ImageCapture = ({ onImageCapture, onImageUpload }) => {
         <div className="text-center">
           <button
             onClick={resetImages}
-            className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-colors flex items-center space-x-2 mx-auto"
+            className="bg-white/50 backdrop-blur-sm text-gray-700 px-8 py-4 rounded-xl font-bold hover:bg-white/70 transition-all duration-300 flex items-center space-x-2 mx-auto border-2 border-gray-200 hover:scale-105"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-5 h-5" />
             <span>Start Over</span>
           </button>
         </div>
