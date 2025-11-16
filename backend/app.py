@@ -36,6 +36,7 @@ if os.getenv('DATABASE_URL'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     print(f"[INFO] Using PostgreSQL database from DATABASE_URL")
+    print(f"[INFO] Python version: {os.sys.version}")
 else:
     # Local SQLite (development)
     instance_dir = os.path.join(backend_dir, 'instance')

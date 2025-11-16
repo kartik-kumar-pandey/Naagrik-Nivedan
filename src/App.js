@@ -17,10 +17,28 @@ import './App.css';
 
 function AppContent() {
   const [userLocation, setUserLocation] = useState(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const mainRef = useRef(null);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
+    // Check for Firebase configuration
+    const firebaseVars = [
+      'REACT_APP_FIREBASE_API_KEY',
+      'REACT_APP_FIREBASE_AUTH_DOMAIN',
+      'REACT_APP_FIREBASE_DATABASE_URL',
+      'REACT_APP_FIREBASE_PROJECT_ID'
+    ];
+    
+    const missingVars = firebaseVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+      console.error('Missing Firebase environment variables:', missingVars);
+      setHasError(true);
+      setErrorMessage(`Missing Firebase configuration. Please set: ${missingVars.join(', ')}`);
+    }
+
     if (mainRef.current) {
       gsap.fromTo(mainRef.current, 
         { opacity: 0, y: 20 },
@@ -28,6 +46,56 @@ function AppContent() {
       );
     }
   }, []);
+
+  // Show error message if Firebase is not configured
+  if (hasError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-cyan-100 p-4">
+        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
+          <h1 className="text-3xl font-bold text-red-600 mb-4">⚠️ Configuration Error</h1>
+          <p className="text-gray-700 mb-4">{errorMessage}</p>
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+            <p className="text-sm text-gray-700">
+              <strong>To fix this:</strong>
+            </p>
+            <ol className="list-decimal list-inside mt-2 space-y-1 text-sm text-gray-600">
+              <li>Go to Vercel Dashboard → Your Project → Settings → Environment Variables</li>
+              <li>Add all 7 Firebase environment variables</li>
+              <li>Set them for <strong>Production</strong>, <strong>Preview</strong>, AND <strong>Development</strong></li>
+              <li>Redeploy your application</li>
+            </ol>
+          </div>
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
+            <p className="text-sm text-gray-700">
+              <strong>Required Variables:</strong>
+            </p>
+            <ul className="list-disc list-inside mt-2 space-y-1 text-xs text-gray-600 font-mono">
+              <li>REACT_APP_FIREBASE_API_KEY</li>
+              <li>REACT_APP_FIREBASE_AUTH_DOMAIN</li>
+              <li>REACT_APP_FIREBASE_DATABASE_URL</li>
+              <li>REACT_APP_FIREBASE_PROJECT_ID</li>
+              <li>REACT_APP_FIREBASE_STORAGE_BUCKET</li>
+              <li>REACT_APP_FIREBASE_MESSAGING_SENDER_ID</li>
+              <li>REACT_APP_FIREBASE_APP_ID</li>
+              <li>REACT_APP_API_BASE_URL</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-cyan-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
